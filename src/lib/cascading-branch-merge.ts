@@ -17,6 +17,8 @@ type GetRepositoryBranchesResponse =
  * @param pullNumber The pull request number.
  * @param actor The actor of the pull request.
  * @param log Probot logger instance.
+ * @param originalPrTitle The title of the original PR that triggered the cascade.
+ * @param originalPrBody The body/description of the original PR.
  */
 export async function cascadingBranchMerge(
   prefixes: string[],
@@ -28,7 +30,9 @@ export async function cascadingBranchMerge(
   octokit: any,
   pullNumber: number,
   actor: string,
-  log: Logger
+  log: Logger,
+  originalPrTitle: string,
+  originalPrBody: string | null
 ) {
   let success = true
 
@@ -68,13 +72,27 @@ export async function cascadingBranchMerge(
 
       // Create a PR for the next merge.
       try {
+        // Build PR body with original PR context
+        const prBody = `🔄 **Automatic Cascade Merge**
+
+This PR was created automatically by the Cascading Merge App.
+
+**Original PR:** #${pullNumber}  
+**Original Title:** ${originalPrTitle}  
+**Triggered by:** @${actor}
+
+---
+
+### Original PR Description:
+${originalPrBody || '_No description provided_'}`
+
         res = await octokit.rest.pulls.create({
           owner,
           repo,
           base: mergeList[i + 1],
           head: mergeList[i],
           title: `Automatic merge from ${mergeList[i]} -> ${mergeList[i + 1]}`,
-          body: 'This PR was created automatically by the Cascading Merge App.'
+          body: prBody
         })
       } catch (error: any) {
         const message = error.response?.data?.errors?.[0]?.message || ''
