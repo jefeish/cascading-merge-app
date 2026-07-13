@@ -89,7 +89,7 @@ export async function cascadingBranchMerge(
               owner,
               repo,
               issue_number: pullNumber,
-              body: `Skipping creation of cascading PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__\n\nThere are no commits between these branches.\n\nContinuing auto-merge action...`
+              body: `Skipping creation of cascading PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__\n\nThere are no commits between these branches.\n\nContinuing auto-merge activity...`
             })
 
             continue
