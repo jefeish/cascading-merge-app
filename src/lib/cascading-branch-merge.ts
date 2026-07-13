@@ -17,6 +17,7 @@ type GetRepositoryBranchesResponse =
  * @param pullNumber The pull request number.
  * @param actor The actor of the pull request.
  * @param log Probot logger instance.
+ * @param verbose If true, creates a GitHub Issue with a Mermaid diagram showing the cascade flow.
  */
 export async function cascadingBranchMerge(
   prefixes: string[],
@@ -28,9 +29,18 @@ export async function cascadingBranchMerge(
   octokit: any,
   pullNumber: number,
   actor: string,
-  log: Logger
+  log: Logger,
+  verbose: boolean = false
 ) {
   let success = true
+  
+  // Track created PRs for verbose reporting
+  const createdPRs: Array<{
+    prNumber: number
+    sourceBranch: string
+    targetBranch: string
+    skipped?: boolean
+  }> = []
 
   // Get all branches in the repository.
   const branches = await octokit.paginate(octokit.rest.repos.listBranches, {
@@ -92,6 +102,14 @@ export async function cascadingBranchMerge(
               body: `Skipping creation of cascading PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__\n\nThere are no commits between these branches.\n\nContinuing auto-merge activity...`
             })
 
+            // Track skipped PR for verbose reporting
+            createdPRs.push({
+              prNumber: 0,
+              sourceBranch: mergeList[i],
+              targetBranch: mergeList[i + 1],
+              skipped: true
+            })
+
             continue
           } else if (message.startsWith('A pull request already exists')) {
             log.warn(
@@ -137,6 +155,13 @@ export async function cascadingBranchMerge(
         repo,
         issue_number: pullNumber,
         body: `Created cascading Auto-Merge PR #${res!.data.number} to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__`
+      })
+
+      // Track created PR for verbose reporting
+      createdPRs.push({
+        prNumber: res!.data.number,
+        sourceBranch: mergeList[i],
+        targetBranch: mergeList[i + 1]
       })
 
       // Merge the PR
@@ -201,6 +226,115 @@ export async function cascadingBranchMerge(
       ? ':white_check_mark: Auto-merge was successful.'
       : ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
   })
+
+  // If verbose mode is enabled, create a GitHub Issue with the cascade report
+  if (verbose && createdPRs.length > 0) {
+    await createCascadeReport(
+      owner,
+      repo,
+      octokit,
+      pullNumber,
+      headBranch,
+      baseBranch,
+      createdPRs,
+      log
+    )
+  }
+}
+
+/**
+ * Creates a GitHub Issue with a Mermaid diagram visualizing the cascade flow
+ *
+ * @param owner The owner of the repository
+ * @param repo The repository name
+ * @param octokit The octokit instance
+ * @param pullNumber The original PR that triggered the cascade
+ * @param headBranch The head branch of the original PR
+ * @param baseBranch The base branch of the original PR
+ * @param createdPRs Array of created PRs with their details
+ * @param log Probot logger instance
+ */
+async function createCascadeReport(
+  owner: string,
+  repo: string,
+  octokit: any,
+  pullNumber: number,
+  headBranch: string,
+  baseBranch: string,
+  createdPRs: Array<{
+    prNumber: number
+    sourceBranch: string
+    targetBranch: string
+    skipped?: boolean
+  }>,
+  log: Logger
+) {
+  log.info('Creating cascade report issue...')
+
+  // Build the Mermaid gitGraph diagram
+  // Use init directive to set the feature branch as the main branch so the diagram starts there
+  let mermaidDiagram = '```mermaid\n%%{init: {\'gitGraph\': {\'mainBranchName\': \'' + headBranch + '\'}}}%%\ngitGraph\n'
+  
+  // Start on the head branch (feature branch)
+  mermaidDiagram += `  commit id: "Feature changes"\n`
+  mermaidDiagram += `  branch "${baseBranch}"\n`
+  mermaidDiagram += `  checkout "${baseBranch}"\n`
+  mermaidDiagram += `  commit id: "PR #${pullNumber} merged"\n`
+  
+  // Add each cascade PR as a branch from its source
+  for (const pr of createdPRs) {
+    if (!pr.skipped) {
+      mermaidDiagram += `  checkout "${pr.sourceBranch}"\n`
+      mermaidDiagram += `  branch "${pr.targetBranch}"\n`
+      mermaidDiagram += `  checkout "${pr.targetBranch}"\n`
+      mermaidDiagram += `  commit id: "PR #${pr.prNumber}"\n`
+    }
+  }
+  
+  mermaidDiagram += '```'
+
+  // Build the PR summary table
+  let prTable = '| PR # | Source Branch | Target Branch | Status |\n'
+  prTable += '|------|---------------|---------------|--------|\n'
+  
+  for (const pr of createdPRs) {
+    const status = pr.skipped ? '⏭️ Skipped (no commits)' : '✅ Created & Merged'
+    const prLink = pr.skipped ? '-' : `#${pr.prNumber}`
+    prTable += `| ${prLink} | \`${pr.sourceBranch}\` | \`${pr.targetBranch}\` | ${status} |\n`
+  }
+
+  // Build the issue body
+  const issueBody = `# 🔄 Cascade Merge Report
+
+## Trigger Information
+- **Original PR**: #${pullNumber}
+- **Merged Branch**: \`${headBranch}\` → \`${baseBranch}\`
+- **Total Cascade PRs**: ${createdPRs.filter(pr => !pr.skipped).length} created, ${createdPRs.filter(pr => pr.skipped).length} skipped
+
+## Cascade PRs
+
+${prTable}
+
+## Visual Flow
+
+${mermaidDiagram}
+
+---
+*This report was automatically generated by the Cascading Merge App in verbose mode.*`
+
+  try {
+    const issue = await octokit.rest.issues.create({
+      owner,
+      repo,
+      title: `🔄 Cascade Merge Report: PR #${pullNumber}`,
+      body: issueBody,
+      labels: ['cascade-report']
+    })
+
+    log.info(`Created cascade report issue #${issue.data.number}`)
+  } catch (error: any) {
+    log.error('Failed to create cascade report issue', error)
+  }
 }
 
 /**

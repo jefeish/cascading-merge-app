@@ -27,6 +27,19 @@ export default (app: Probot) => {
     context.log.info(`Head branch: ${pull_request.head.ref}`)
     context.log.info(`Base branch: ${pull_request.base.ref}`)
 
+    // Check if this PR was created by the bot (cascade PR)
+    // Bot PRs should NOT trigger cascade logic because all cascade PRs
+    // were already created by the original PR
+    const isBotPR = pull_request.user.type === 'Bot' || 
+                    pull_request.title.startsWith('Automatic merge from')
+    
+    if (isBotPR) {
+      context.log.info(
+        `PR #${pull_request.number} is a bot-created cascade PR, skipping cascade logic (all cascade PRs already created by original PR)`
+      )
+      return
+    }
+
     try {
       // Load configuration from repository
       const config = await loadConfig(context)
@@ -41,7 +54,7 @@ export default (app: Probot) => {
       }
 
       context.log.info(
-        `Configuration loaded: prefixes=[${config.prefixes.join(', ')}], ref_branch=${config.ref_branch}`
+        `Configuration loaded: prefixes=[${config.prefixes.join(', ')}], ref_branch=${config.ref_branch}, verbose=${config.verbose ?? false}`
       )
 
       // Check if the base branch matches any configured prefix
@@ -76,7 +89,8 @@ export default (app: Probot) => {
         context.octokit,
         pull_request.number,
         actor,
-        context.log
+        context.log,
+        config.verbose ?? false
       )
 
       context.log.info(

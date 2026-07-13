@@ -83,6 +83,11 @@ LOG_FORMAT=json             # json or pretty
 PORT=3000                   # Default: 3000
 NODE_ENV=production         # production or development
 
+# Configuration Behavior
+MISSING_CONFIG_BEHAVIOR=skip  # 'skip' or 'use-defaults'
+                              # skip: Only process repos with .github/cascading-merge.yml
+                              # use-defaults: Use default config if file missing
+
 # Webhook proxy (development only)
 WEBHOOK_PROXY_URL=https://smee.io/your-channel
 
@@ -90,6 +95,8 @@ WEBHOOK_PROXY_URL=https://smee.io/your-channel
 GITHUB_API_TIMEOUT=30000    # API timeout in ms
 MAX_RETRIES=3               # Max API retry attempts
 ```
+
+> **💡 Multi-Repository Installations**: Set `MISSING_CONFIG_BEHAVIOR=skip` when installing across an organization to only process repositories that explicitly opt-in with a `.github/cascading-merge.yml` file.
 
 ## Docker Deployment
 

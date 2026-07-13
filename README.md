@@ -5,13 +5,15 @@ Automatically cascade changes to newer release branches and reduce the need for 
 
 This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.atlassian.com/bitbucketserver/automatic-branch-merging-776639993.html) feature and preserves the exact branch ordering algorithm to ensure semantic versioning compatibility.
 
-> **🚀 New here?** Check out the [Quick Start Guide](docs/QUICKSTART.md) to get running in under 10 minutes!
+> **⚡ Get Started in 5 Minutes**: [Quick Start Guide →](docs/QUICKSTART.md)
 
 ## 🚀 Features
 
 - **Automatic Cascade Merging**: When a PR is merged to a release branch, automatically creates PRs to merge into all subsequent branches
 - **Semantic Version Ordering**: Uses Bitbucket's proven algorithm to correctly order branches with complex versioning (e.g., `1.1-rc1`, `1.2-a`, `2.0`)
+- **Visual Reporting**: Optional verbose mode creates GitHub Issues with Mermaid diagrams showing cascade flow
 - **Repository-Scoped Configuration**: Each repository controls its own cascade rules via `.github/cascading-merge.yml`
+- **Bot PR Detection**: Automatically skips cascade logic for bot-created PRs to prevent duplicate cascades
 - **Error Handling**: Gracefully handles merge conflicts, duplicate PRs, and API errors
 - **Issue Tracking**: Automatically creates issues for manual intervention when needed
 
@@ -87,7 +89,21 @@ prefixes:
 
 # The final branch to merge into
 ref_branch: 'main'
+
+# Enable verbose reporting (optional, default: false)
+# Creates a GitHub Issue with visual cascade report
+verbose: true
 ```
+
+See the complete configuration example with documentation: [`.github/cascading-merge.yml.example`](.github/cascading-merge.yml.example)
+
+### Configuration Options
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `prefixes` | Yes | `['release/']` | Array of branch prefixes to include in cascades |
+| `ref_branch` | Yes | `'develop'` | Final branch in the cascade sequence |
+| `verbose` | No | `false` | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
 
 ### Example Workflow
 
@@ -104,6 +120,7 @@ When a PR is merged into `release/1.0`, the app will:
 4. Auto-merge if no conflicts
 5. Create a PR from `release/2.0` → `main`
 6. Auto-merge if no conflicts
+7. **(If `verbose: true`)** Create an Issue with cascade report and Mermaid diagram
 
 If any merge fails due to conflicts, it:
 - Stops the cascade at that point
@@ -154,11 +171,12 @@ Complete documentation suite:
 
 | Document | Description |
 |----------|-------------|
-| **[Quick Start Guide](docs/QUICKSTART.md)** | ⚡ Get running in 10 minutes |
+| **[Quick Start Guide](docs/QUICKSTART.md)** | ⚡ Get running in 5 minutes |
 | **[Installation Guide](docs/INSTALLATION.md)** | 📦 Automated & manual setup |
-| **[Configuration Guide](#️-repository-configuration)** | ⚙️ Configure cascade behavior |
+| **[Configuration Example](.github/cascading-merge.yml.example)** | ⚙️ Complete config with all options |
 | **[Deployment Guide](docs/DEPLOYMENT.md)** | 🚀 Production deployment (Docker, Cloud platforms) |
 | **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** | 🐛 Common issues and solutions |
+| **[Sequence Diagram](docs/cascade-sequence.md)** | 📊 Visual flow diagrams |
 | **[Contributing Guide](CONTRIBUTING.md)** | 🤝 How to contribute |
 | **[Architecture Decisions](docs/adr-001-github-app-architecture.md)** | 🏗️ Technical design decisions |
 | **[Changelog](CHANGELOG.md)** | 📝 Version history |

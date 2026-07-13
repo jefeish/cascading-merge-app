@@ -64,7 +64,8 @@ function validateConfig(
 ): CascadingMergeConfig {
   const result: CascadingMergeConfig = {
     prefixes: config.prefixes || DEFAULT_CONFIG.prefixes,
-    ref_branch: config.ref_branch || DEFAULT_CONFIG.ref_branch
+    ref_branch: config.ref_branch || DEFAULT_CONFIG.ref_branch,
+    verbose: config.verbose ?? DEFAULT_CONFIG.verbose
   }
 
   // Validate prefixes

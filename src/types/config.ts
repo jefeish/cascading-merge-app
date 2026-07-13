@@ -13,6 +13,12 @@ export interface CascadingMergeConfig {
    * Example: 'develop' or 'main'
    */
   ref_branch: string
+
+  /**
+   * If true, creates a GitHub Issue with a Mermaid diagram showing the cascade flow
+   * Example: true or false
+   */
+  verbose?: boolean
 }
 
 /**
@@ -20,5 +26,6 @@ export interface CascadingMergeConfig {
  */
 export const DEFAULT_CONFIG: CascadingMergeConfig = {
   prefixes: ['release/'],
-  ref_branch: 'develop'
+  ref_branch: 'develop',
+  verbose: false
 }

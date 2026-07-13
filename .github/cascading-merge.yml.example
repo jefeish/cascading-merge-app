@@ -32,6 +32,14 @@ prefixes:
 # This is the last branch in the cascade sequence
 ref_branch: 'main'
 
+# Enable verbose reporting (optional)
+# When true, creates a GitHub Issue with:
+# - Details of the original PR that triggered the cascade
+# - A table of all cascade PRs created
+# - A Mermaid diagram visualizing the cascade flow
+# Default: false
+verbose: true
+
 # --- How It Works ---
 #
 # Example branch structure:

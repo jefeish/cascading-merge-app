@@ -1,203 +1,117 @@
 # Quick Start Guide
 
-Get the Cascading Merge App running in under 10 minutes!
+Get the Cascading Merge App running in **5 minutes**!
 
-## 🎯 Goal
+## Prerequisites (5 min)
 
-Set up the app locally to test cascade merging on your repository.
+- Node.js 20+ and npm
+- Admin access to a GitHub org/repo
 
-## ⏱️ Time Required
+## Setup
 
-~10 minutes (5 min if you already have a GitHub App)
-
-## 📋 Prerequisites Checklist
-
-- [ ] Node.js 20+ installed (`node --version`)
-- [ ] npm installed (`npm --version`)
-- [ ] Admin access to a GitHub organization or repository
-- [ ] A test repository with multiple branches
-
-## 🚀 Step-by-Step Setup
-
-### Step 1: Create GitHub App (3 minutes)
-
-1. Go to: **GitHub.com → Settings → Developer settings → GitHub Apps → New GitHub App**
-
-2. Fill in **basic info**:
-   ```
-   Name: cascading-merge-test
-   Homepage URL: https://github.com
-   Webhook URL: https://smee.io/new (click to generate)
-   Webhook Secret: (run: openssl rand -hex 20)
-   ```
-
-3. Set **permissions**:
-   - Repository permissions:
-     - ✅ Contents: Read & Write
-     - ✅ Issues: Read & Write  
-     - ✅ Metadata: Read-only
-     - ✅ Pull requests: Read & Write
-
-4. Subscribe to **events**:
-   - ✅ Pull request
-
-5. **Create the app** → Generate and download private key
-
-6. **Install the app** on your test repository
-
-### Step 2: Clone and Setup (2 minutes)
+### 1. Clone & Install (1 min)
 
 ```bash
-# Clone the repository
 git clone https://github.com/YOUR_ORG/cascading-merge-app.git
 cd cascading-merge-app
-
-# Install dependencies
 npm install
+``` 
 
-# Copy environment template
+### 2. Create GitHub App (2 min)
+
+**Option A: Automated** ⚡
+```bash
+npm run dev
+# Opens browser, creates app automatically, based on the 'app.yml' manifest
+```
+
+**Option B: Manual** 📝  
+Go to: GitHub → Settings → Developer settings → GitHub Apps → New
+- **Permissions**: Contents (R/W), Issues (R/W), Pull requests (R/W), Metadata (Read)
+- **Events**: Pull request
+- **Webhook**: https://smee.io/new (get URL first)
+- **Secret**: `openssl rand -hex 20`
+- Generate & download private key
+
+### 3. Configure  The App (1 min)
+
+
+:warning: NOTE: If you used 'option 1', automated App installation, the basic App `.env` settings have already been done for you. You can skip to **4. (Step 2)**
+
+```bash
 cp .env.example .env
 ```
 
-### Step 3: Configure Environment (2 minutes)
-
-Edit `.env` file:
-
+Edit `.env`:
 ```bash
-# From GitHub App settings page
-APP_ID=123456                              # Top of settings page
-WEBHOOK_SECRET=abc123...                   # Your generated secret
-PRIVATE_KEY_PATH=./private-key.pem        # Path to downloaded key
-
-# From smee.io page
-WEBHOOK_PROXY_URL=https://smee.io/abc123  # Your smee channel URL
-
-# Development settings
-LOG_LEVEL=debug
-NODE_ENV=development
+APP_ID=123456                              # From app settings
+WEBHOOK_SECRET=abc...                      # Your secret
+PRIVATE_KEY_PATH=./private-key.pem        # Downloaded key
+WEBHOOK_PROXY_URL=https://smee.io/abc...  # Smee URL
 ```
 
-Save the downloaded private key as `private-key.pem` in the project root.
+### 4. Start (1 min)
 
-### Step 4: Start the App (1 minute)
-
+Step 1
 ```bash
-# Terminal 1: Start webhook proxy
+# Terminal 1: Webhook proxy
 npx smee -u https://smee.io/YOUR_URL -t http://localhost:3000
-
-# Terminal 2: Start the app
+```
+Step 2
+```bash
+# Terminal 2: App
 npm run dev
 ```
 
-You should see:
-```
-INFO  Listening on http://localhost:3000
-INFO  Connected to GitHub App ID: 123456
-```
+✅ You should see: `INFO Listening on http://localhost:3000`
 
-### Step 5: Configure Repository (2 minutes)
+### 5. Configure Repository (1 min)
 
-In your test repository, create: `.github/cascading-merge.yml`
+In your test repo, create `.github/cascading-merge.yml`:
+
+:warning: **NOTE:** See the `.github/cascading-merge.yml.example` for available content.
 
 ```yaml
 prefixes:
   - 'release/'
 ref_branch: 'main'
+verbose: true  # Creates visual reports
 ```
 
-Commit and push this file to your `main` branch.
+:warning: Commit to your default branch.
 
-### Step 6: Test It! (2 minutes)
+## Test It!
 
-1. **Create test branches**:
-   ```bash
-   git checkout -b release/1.0
-   git push origin release/1.0
-   
-   git checkout -b release/2.0  
-   git push origin release/2.0
-   
-   git checkout main
-   ```
+1. Create branches: `release/1.0`, `release/2.0`
+2. Make a change on `release/1.0`
+3. Create `patch` branch and merge a PR
+4. **Watch cascade PRs appear automatically!** 🎉
 
-2. **Create and merge a test PR**:
-   ```bash
-   # Make a change on release/1.0
-   git checkout release/1.0
-   echo "test" > test.txt
-   git add test.txt
-   git commit -m "test change"
-   git push origin release/1.0
-   ```
-
-3. **Open PR**: `release/1.0` → `release/1.0` (or create a feature branch)
-
-4. **Merge the PR** on GitHub
-
-5. **Watch the magic**! 🎉
-   - Check your terminal for logs
-   - Look for new PRs created automatically
-   - See cascade progress in PR comments
-
-## ✅ Success Indicators
-
-You know it's working when you see:
-
-**In Terminal:**
+**Terminal shows:**
 ```
-DEBUG Configuration loaded: prefixes=[release/], ref_branch=main
 INFO  Starting cascade merge from release/1.0
 INFO  Created PR #123: release/1.0 → release/2.0
-INFO  Auto-merged PR #123
 INFO  Created PR #124: release/2.0 → main
-INFO  Auto-merged PR #124
-INFO  Cascade completed successfully
 ```
 
-**On GitHub:**
-- New PRs appear automatically
-- PRs are auto-merged if no conflicts
-- Original PR has comment: "✅ Auto-merge was successful."
+**With `verbose: true`, check GitHub Issues** for a visual cascade report with Mermaid diagrams.
 
-## 🐛 Common Issues
+## Troubleshooting
 
-### "Webhook not received"
-**Fix**: Ensure smee proxy is running and URL matches your GitHub App webhook URL
+| Issue | Fix |
+|-------|-----|
+| "Webhook not received" | Check smee proxy is running |
+| "Configuration not found" | Ensure `.github/cascading-merge.yml` is on default branch |
+| "Authentication failed" | Verify `APP_ID` and `PRIVATE_KEY_PATH` |
+| Port 3000 in use | `lsof -ti:3000 \| xargs kill -9` |
 
-### "Configuration not found"  
-**Fix**: Make sure `.github/cascading-merge.yml` is in repository root on main branch
+📖 **Detailed help**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
-### "Authentication failed"
-**Fix**: Verify `APP_ID` and `PRIVATE_KEY_PATH` in `.env` are correct
+## Next Steps
 
-### "Port 3000 already in use"
-**Fix**: `lsof -ti:3000 | xargs kill -9` or change port: `PORT=3001 npm run dev`
-
-### Still stuck?
-See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for detailed solutions.
-
-## 🎓 Next Steps
-
-Now that it's working:
-
-1. **Production deployment**: See [DEPLOYMENT.md](docs/DEPLOYMENT.md)
-2. **Customize configuration**: See [Configuration Examples](#configuration-examples) below  
-3. **Contribute**: See [CONTRIBUTING.md](CONTRIBUTING.md)
-4. **Integrate with CI/CD**: Configure branch protection rules
-
-## 💡 Configuration Examples
-
-### Multiple Branch Prefixes
-
-```yaml
-prefixes:
-  - 'release/'
-  - 'hotfix/'
-  - 'staging/'
-ref_branch: 'main'
-```
-
-### Complex Version Branches
+- **Production**: [DEPLOYMENT.md](DEPLOYMENT.md)
+- **Configuration**: [README.md](../README.md#-repository-configuration)
+- **Contributing**: [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ```yaml
 # Handles: release/1.0, release/1.1-rc1, release/2.0-alpha
