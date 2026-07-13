@@ -76,9 +76,7 @@ export default (app: Probot) => {
         context.octokit,
         pull_request.number,
         actor,
-        context.log,
-        pull_request.title,
-        pull_request.body
+        context.log
       )
 
       context.log.info(
