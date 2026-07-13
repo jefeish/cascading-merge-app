@@ -97,8 +97,10 @@ verbose: true  # Creates report issue with Mermaid diagram
 
 When `verbose: true`, the app creates a GitHub Issue after cascade completion:
 
-```markdown
-# 🔄 Cascade Merge Report
+### Sample Report
+---
+
+## 🔄 Cascade Merge Report
 
 ## Trigger Information
 - **Original PR**: #100
@@ -125,7 +127,8 @@ gitGraph
   branch "main"
   commit id: "PR #103"
 ```
-```
+
+---
 
 ## Branch Ordering Algorithm
 
