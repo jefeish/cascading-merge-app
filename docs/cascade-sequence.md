@@ -132,7 +132,7 @@ gitGraph
   checkout "release/2.0"
   commit id: "PR #102"
 
-  checkout main
+  checkout "feature/xyz"
   commit id: "PR #103"
 ```
 ---
