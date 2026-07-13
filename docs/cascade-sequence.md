@@ -115,6 +115,7 @@ When `verbose: true`, the app creates a GitHub Issue after cascade completion:
 | #103 | `release/2.0` | `main` | ✅ Created & Merged |
 
 ## Visual Flow
+
 ```mermaid
 gitGraph
   commit id: "PR #100"
