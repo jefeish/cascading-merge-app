@@ -1,0 +1,21 @@
+# GitHub App manifest
+# Use this file to quickly create a GitHub App
+# https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/creating-a-github-app-from-a-manifest
+
+name: Cascading Merge App
+description: Automatically merge downstream branches based on semantic versioning
+url: https://github.com/ActionsDesk/cascading-merge-app
+
+# GitHub App permissions
+default_permissions:
+  contents: write
+  pull_requests: write
+  issues: write
+  metadata: read
+
+# Webhook events
+default_events:
+  - pull_request
+
+# Configuration for GitHub App
+public: false

@@ -1,0 +1,64 @@
+{
+  "name": "cascading-merge-app",
+  "description": "GitHub App to automatically merge downstream branches based on semantic versioning",
+  "version": "1.0.0",
+  "author": "GitHub Expert Services",
+  "type": "module",
+  "private": true,
+  "homepage": "https://github.com/ActionsDesk/cascading-merge-app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ActionsDesk/cascading-merge-app"
+  },
+  "keywords": [
+    "probot",
+    "github-app",
+    "automerge",
+    "cicd",
+    "bitbucket",
+    "cascade-merge"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "dev": "nodemon --exec 'npm start'",
+    "start": "probot run ./dist/index.js",
+    "setup": "node scripts/setup-github-app.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 jest",
+    "test:watch": "jest --watch",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.1.1",
+    "js-yaml": "^4.1.0",
+    "probot": "^13.3.8",
+    "probot-config": "^1.0.1"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^1.4.0",
+    "@jest/globals": "^29.7.0",
+    "@octokit/types": "^14.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.15.19",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.32.1",
+    "eslint": "^9.37.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-github": "^6.0.0",
+    "eslint-plugin-jest": "^28.11.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.9",
+    "prettier": "^3.6.2",
+    "smee-client": "^2.0.3",
+    "ts-jest": "^29.4.4",
+    "typescript": "^5.9.3"
+  }
+}
