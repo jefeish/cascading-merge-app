@@ -119,16 +119,22 @@ When `verbose: true`, the app creates a GitHub Issue after cascade completion:
 ```mermaid
 gitGraph
   commit id: "PR #100"
+
   branch "release/1.0"
+  checkout "release/1.0"
   commit id: "Merged feature/xyz"
+
   branch "release/1.1"
+  checkout "release/1.1"
   commit id: "PR #101"
+
   branch "release/2.0"
+  checkout "release/2.0"
   commit id: "PR #102"
-  branch "main"
+
+  checkout main
   commit id: "PR #103"
 ```
-
 ---
 
 ## Branch Ordering Algorithm
