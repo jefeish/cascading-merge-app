@@ -5,6 +5,8 @@ Automatically cascade changes to newer release branches and reduce the need for 
 
 This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.atlassian.com/bitbucketserver/automatic-branch-merging-776639993.html) feature and preserves the exact branch ordering algorithm to ensure semantic versioning compatibility.
 
+> **📦 Built with Probot**: This app uses the [Probot](https://probot.github.io/) framework for GitHub Apps. For advanced configuration options and framework-specific details, refer to the [Probot documentation](https://probot.github.io/docs/).
+
 > **⚡ Get Started in 5 Minutes**: [Quick Start Guide →](docs/QUICKSTART.md)
 
 ## 🚀 Features
@@ -33,11 +35,11 @@ git clone https://github.com/YOUR_ORG/cascading-merge-app.git
 cd cascading-merge-app
 npm install
 
-# Run automated setup
-npm run setup
+# Start without .env to trigger automated setup
+npm start
 ```
 
-Then open `http://localhost:3333` in your browser and follow the instructions to create your GitHub App automatically!
+Probot will detect the missing `.env` file and start the setup server. Open `http://localhost:3000` in your browser, click "Register GitHub App", and follow the GitHub App creation flow. Probot will automatically save your credentials to `.env` using the `app.yml` manifest.
 
 ### Manual Install
 

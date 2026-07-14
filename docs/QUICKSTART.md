@@ -2,6 +2,8 @@
 
 Get the Cascading Merge App running in **5 minutes**!
 
+> **📦 Built with Probot**: This app is built on the [Probot](https://probot.github.io/) framework. For framework-specific configuration details, see the [Probot documentation](https://probot.github.io/docs/).
+
 ## Prerequisites (5 min)
 
 - Node.js 20+ and npm
@@ -21,8 +23,9 @@ npm install
 
 **Option A: Automated** ⚡
 ```bash
-npm run dev
-# Opens browser, creates app automatically, based on the 'app.yml' manifest
+npm start  # Without .env file, triggers Probot's setup flow
+# Open http://localhost:3000, click "Register GitHub App"
+# Follow GitHub flow - credentials auto-saved to .env via app.yml
 ```
 
 **Option B: Manual** 📝  

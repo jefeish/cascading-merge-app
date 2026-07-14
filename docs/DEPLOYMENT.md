@@ -2,6 +2,8 @@
 
 This guide covers deploying the Cascading Merge App to production environments.
 
+> **📦 Built with Probot**: This app is built on the [Probot](https://probot.github.io/) framework. For framework-specific deployment patterns, environment variables, and production best practices, see the [Probot deployment documentation](https://probot.github.io/docs/deployment/).
+
 ## Table of Contents
 
 - [Deployment Options](#deployment-options)

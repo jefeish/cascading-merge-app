@@ -2,6 +2,8 @@
 
 This guide covers two methods for creating and installing the Cascading Merge App.
 
+> **📦 Built with Probot**: This app uses the [Probot](https://probot.github.io/) framework for GitHub Apps. The automated setup leverages Probot's built-in manifest registration flow. For advanced framework configuration, refer to the [Probot documentation](https://probot.github.io/docs/).
+
 ## 📋 Prerequisites
 
 - Node.js 20 or higher
@@ -11,7 +13,7 @@ This guide covers two methods for creating and installing the Cascading Merge Ap
 
 ## 🚀 Method 1: Automated Setup (Recommended)
 
-The easiest way to create a GitHub App using the manifest flow.
+The easiest way to create a GitHub App using Probot's built-in manifest flow.
 
 ### Step 1: Clone and Install
 
@@ -21,28 +23,30 @@ cd cascading-merge-app
 npm install
 ```
 
-### Step 2: Run Setup Script
+### Step 2: Start Without an `.env` File
 
 ```bash
-npm run setup
+npm start
 ```
 
-This will:
-1. Start a local web server on port 3333
-2. Open `http://localhost:3333` in your browser
-3. Guide you through creating the GitHub App
-4. Automatically save credentials to `.env`
+Probot detects that no `.env` file exists and automatically uses the `app.yml` manifest to pre-configure the GitHub App.
 
-### Step 3: Follow Browser Instructions
+#### Step 2.1: Complete GitHub App Registration
 
-1. Click "Create GitHub App"
-2. Choose your organization or personal account
-3. GitHub will create the app and redirect back
-4. Credentials will be automatically saved
+1. Open `http://localhost:3000` in your browser
+2. Click "Register GitHub App"
+3. You'll be redirected to GitHub to complete the app creation
+4. Choose your organization or personal account
+5. Review the permissions from `app.yml` and click "Create GitHub App"
+6. GitHub redirects back and Probot automatically writes credentials to `.env`
+7. Check your local `.env` to see the configured settings and add any custom parameters, if required.
+8. Restart the App!
 
-### Step 4: Install the App
+**NOTE:** By default the automated installation creates a local development setup, which uses a webhook proxy (smee.io)
 
-After setup completes, you'll see a URL to install the app. Visit:
+### Step 3: Install the App (on an Org)
+
+After setup completes, you can use the GitHub UI to install the App.
 
 ```
 https://github.com/apps/YOUR_APP_NAME/installations/new
@@ -50,25 +54,14 @@ https://github.com/apps/YOUR_APP_NAME/installations/new
 
 Select the repositories where you want the app to run.
 
-### Step 5: Configure Webhook (for local dev)
-
-For local development, you need a webhook proxy:
-
-1. Go to https://smee.io/new
-2. Copy the webhook proxy URL
-3. Add to `.env`:
-   ```bash
-   WEBHOOK_PROXY_URL=https://smee.io/YOUR_CHANNEL
-   ```
-4. Start the proxy:
-   ```bash
-   npx smee -u https://smee.io/YOUR_CHANNEL -t http://localhost:3000
-   ```
-
-### Step 6: Start the App
+### Step 4: Start the App
 
 ```bash
 npm run dev
+```
+or
+```bash
+npm start
 ```
 
 ## 🔧 Method 2: Manual Setup
@@ -168,6 +161,8 @@ INFO  Listening on http://localhost:3000
 INFO  Connected to GitHub App ID: 123456
 INFO  Cascading Merge App loaded!
 ```
+
+---
 
 ## 🧪 Verify Installation
 

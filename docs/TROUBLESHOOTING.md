@@ -2,6 +2,8 @@
 
 Common issues and solutions for the Cascading Merge App.
 
+> **📦 Built with Probot**: This app uses the [Probot](https://probot.github.io/) framework. For framework-level troubleshooting (webhooks, authentication, middleware), consult the [Probot documentation](https://probot.github.io/docs/).
+
 ## Table of Contents
 
 - [Installation Issues](#installation-issues)
