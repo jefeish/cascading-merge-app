@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-14
+
+### ⚠️ BREAKING CHANGES
+
+- **Removed MISSING_CONFIG_BEHAVIOR environment variable**: The app now **always skips** cascade merge processing for repositories without a `.github/cascading-merge.yml` file
+  - **Migration**: Remove `MISSING_CONFIG_BEHAVIOR` from your `.env` file
+  - **Behavior change**: If you were relying on `use-defaults` behavior, you must now create `.github/cascading-merge.yml` files in each repository where you want cascade merging enabled
+  - **Why**: This change enforces explicit opt-in, making org-wide installations safer and eliminating magic default values
+
+### Removed
+
+- `MISSING_CONFIG_BEHAVIOR` environment variable (no longer needed)
+- `DEFAULT_CONFIG` constant from `src/types/config.ts` (no longer used)
+- Fallback to default configuration values when config file is missing
+
+### Changed
+
+- **Explicit configuration required**: Repositories must have `.github/cascading-merge.yml` to enable cascade merging
+- Simplified configuration loading logic - always returns `null` when config is missing
+- Updated all documentation to reflect the new behavior
+- Clearer log messages when skipping repositories without configuration
+
+### Benefits
+
+- ✅ **Safe org-wide installations**: Install across all repos without unexpected cascades
+- ✅ **Explicit opt-in**: Only repos with config files are processed
+- ✅ **No magic defaults**: No assumptions about branch names or prefixes
+- ✅ **Clearer behavior**: Config file = cascades enabled, no config = skipped
+
 ## [1.1.0] - 2026-07-13
 
 ### Added

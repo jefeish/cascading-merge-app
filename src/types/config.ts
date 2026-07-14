@@ -20,12 +20,3 @@ export interface CascadingMergeConfig {
    */
   verbose?: boolean
 }
-
-/**
- * Default configuration values
- */
-export const DEFAULT_CONFIG: CascadingMergeConfig = {
-  prefixes: ['release/'],
-  ref_branch: 'develop',
-  verbose: false
-}

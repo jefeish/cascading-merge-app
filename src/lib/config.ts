@@ -1,19 +1,17 @@
 import yaml from 'js-yaml'
 import type { CascadingMergeConfig } from '../types/config.js'
-import { DEFAULT_CONFIG } from '../types/config.js'
 
 /**
  * Loads cascading merge configuration from repository's .github/cascading-merge.yml file
  *
  * @param context - Probot context
- * @returns Parsed configuration with defaults applied, or null if config is missing and behavior is 'skip'
+ * @returns Parsed configuration, or null if config is missing (cascade will be skipped)
  * @throws Error if configuration file is invalid
  */
 export async function loadConfig(
   context: any
 ): Promise<CascadingMergeConfig | null> {
   const configPath = '.github/cascading-merge.yml'
-  const missingConfigBehavior = process.env.MISSING_CONFIG_BEHAVIOR || 'use-defaults'
 
   try {
     // Fetch the config file from the repository
@@ -35,25 +33,18 @@ export async function loadConfig(
     }
   } catch (error: any) {
     if (error.status === 404) {
-      // Config file not found - check behavior setting
-      if (missingConfigBehavior === 'skip') {
-        context.log.info(
-          `No configuration file found at ${configPath} and MISSING_CONFIG_BEHAVIOR=skip, skipping cascade for this repository`
-        )
-        return null
-      } else {
-        context.log.info(
-          `No configuration file found at ${configPath}, using defaults`
-        )
-        return DEFAULT_CONFIG
-      }
+      // Config file not found - skip cascade merge for this repository
+      context.log.info(
+        `No configuration file found at ${configPath}, skipping cascade merge for this repository`
+      )
+      return null
     }
     throw new Error(`Failed to load configuration: ${error.message}`)
   }
 }
 
 /**
- * Validates configuration and applies defaults
+ * Validates configuration and applies defaults for optional fields
  *
  * @param config - Partial configuration from YAML file
  * @returns Valid configuration with defaults applied
@@ -63,9 +54,9 @@ function validateConfig(
   config: Partial<CascadingMergeConfig>
 ): CascadingMergeConfig {
   const result: CascadingMergeConfig = {
-    prefixes: config.prefixes || DEFAULT_CONFIG.prefixes,
-    ref_branch: config.ref_branch || DEFAULT_CONFIG.ref_branch,
-    verbose: config.verbose ?? DEFAULT_CONFIG.verbose
+    prefixes: config.prefixes || [],
+    ref_branch: config.ref_branch || '',
+    verbose: config.verbose ?? false
   }
 
   // Validate prefixes

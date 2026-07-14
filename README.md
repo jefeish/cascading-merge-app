@@ -127,29 +127,14 @@ If any merge fails due to conflicts, it:
 - Creates an issue assigning the PR author
 - Adds a comment to the original PR
 
-### Missing Configuration Behavior
+### Missing Configuration
 
-By default, if a repository doesn't have a `.github/cascading-merge.yml` file, the app will use default settings (`prefixes: ['release/']`, `ref_branch: 'develop'`).
+If a repository doesn't have a `.github/cascading-merge.yml` file, **the app will skip cascade merge processing for that repository**. This ensures:
+- **Explicit opt-in**: Only repositories that create a config file will have cascade merging enabled
+- **Safe org-wide installations**: Install the app across an entire organization without triggering unexpected cascades
+- **No magic defaults**: Every repository explicitly defines its cascade behavior
 
-For **multi-repository installations**, you can control this behavior with the `MISSING_CONFIG_BEHAVIOR` environment variable:
-
-```bash
-# Option 1: Skip repos without config (recommended for org-wide installations)
-MISSING_CONFIG_BEHAVIOR=skip
-
-# Option 2: Use defaults for repos without config (current default)
-MISSING_CONFIG_BEHAVIOR=use-defaults
-```
-
-**When to use `skip`:**
-- Installing the app across multiple repositories in an organization
-- Only want cascade merge on repos that explicitly opt-in with a config file
-- Avoid unintended cascades on repos without proper configuration
-
-**When to use `use-defaults`:**
-- Single repository installation
-- All repos in your org use the same cascade pattern
-- Want immediate cascade functionality without configuration files
+To enable cascade merging, create `.github/cascading-merge.yml` in your repository's default branch.
 
 ## 🧪 Testing
 

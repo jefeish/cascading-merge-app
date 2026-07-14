@@ -46,9 +46,8 @@ export default (app: Probot) => {
 
       // If config is null, the repository should be skipped
       if (!config) {
-        const behavior = process.env.MISSING_CONFIG_BEHAVIOR || 'use-defaults'
         context.log.info(
-          `Skipping cascade merge for ${repository.full_name}: No .github/cascading-merge.yml found and MISSING_CONFIG_BEHAVIOR=${behavior} (set in app .env file)`
+          `Skipping cascade merge for ${repository.full_name}: No .github/cascading-merge.yml found`
         )
         return
       }
