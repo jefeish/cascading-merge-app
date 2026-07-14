@@ -78,7 +78,10 @@ ref_branch: 'main'
 verbose: true  # Creates visual reports
 ```
 
-:warning: Commit to your default branch.
+**Commit to your default branch!**
+
+
+### :warning: If you have any `Branch-Rulesets` that prevent Auto-Merging, you must add this App as a `Bypass-Actor` to the Ruleset!
 
 ## Test It!
 
