@@ -1,7 +1,7 @@
 ![logo](docs/images/logo.svg)
 # CASCADE-MERGE-APP
 
-[![CI](https://github.com/ActionsDesk/cascading-merge-app/actions/workflows/ci.yml/badge.svg)](https://github.com/ActionsDesk/cascading-merge-app/actions/workflows/ci.yml)
+[![CI](https://github.com/jefeish/cascading-merge-app/actions/workflows/ci.yml/badge.svg)](https://github.com/ActionsDesk/cascading-merge-app/actions/workflows/ci.yml)
 
 Automatically cascade changes to newer release branches and reduce the need for manual branch maintenance.
 
