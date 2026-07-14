@@ -117,6 +117,7 @@ When `verbose: true`, the app creates a GitHub Issue after cascade completion:
 ## Visual Flow
 
 ```mermaid
+%%{init: {'gitGraph': {'mainBranchName': 'jefeish-patch-16'}}}%%
 gitGraph
   commit id: "PR #100"
 
@@ -132,7 +133,7 @@ gitGraph
   checkout "release/2.0"
   commit id: "PR #102"
 
-  checkout "feature/xyz"
+  checkout "main"
   commit id: "PR #103"
 ```
 ---
