@@ -1,4 +1,4 @@
-name: CI
+name: Format
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  format:
     runs-on: ubuntu-latest
     
     steps:
@@ -23,8 +23,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Build
-        run: npm run build
-      
-      - name: Run tests
-        run: npm test
+      - name: Check formatting
+        run: npm run format:check
