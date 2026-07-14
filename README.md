@@ -1,7 +1,7 @@
 ![logo](docs/images/logo.svg)
 # CASCADE-MERGE-APP
 
-[![TEST](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml/badge.svg)](https://github.com/jefeish/cascading-merge-app/actions/workflows/te.yml)
+[![TEST](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml/badge.svg)](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml)
 
 Automatically cascade changes to newer release branches and reduce the need for manual branch maintenance.
 
