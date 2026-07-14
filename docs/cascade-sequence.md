@@ -90,7 +90,7 @@ prefixes:
 
 ref_branch: 'main'
 
-verbose: true  # Creates report issue with Mermaid diagram
+verbose: true # Creates report issue with Mermaid diagram
 ```
 
 ## Verbose Report Output
@@ -98,21 +98,24 @@ verbose: true  # Creates report issue with Mermaid diagram
 When `verbose: true`, the app creates a GitHub Issue after cascade completion:
 
 ### Sample Report
+
 ---
 
 ## 🔄 Cascade Merge Report
 
 ## Trigger Information
+
 - **Original PR**: #100
 - **Merged Branch**: `feature/xyz` → `release/1.0`
 - **Total Cascade PRs**: 3 created, 0 skipped
 
 ## Cascade PRs
-| PR # | Source Branch | Target Branch | Status |
-|------|---------------|---------------|--------|
+
+| PR # | Source Branch | Target Branch | Status              |
+| ---- | ------------- | ------------- | ------------------- |
 | #101 | `release/1.0` | `release/1.1` | ✅ Created & Merged |
 | #102 | `release/1.1` | `release/2.0` | ✅ Created & Merged |
-| #103 | `release/2.0` | `main` | ✅ Created & Merged |
+| #103 | `release/2.0` | `main`        | ✅ Created & Merged |
 
 ## Visual Flow
 
@@ -135,6 +138,7 @@ gitGraph
   checkout "main"
   commit id: "PR #103"
 ```
+
 ---
 
 ## Branch Ordering Algorithm

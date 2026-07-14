@@ -21,11 +21,13 @@ This guide covers deploying the Cascading Merge App to production environments.
 Best for: Self-hosted infrastructure, maximum control
 
 **Pros:**
+
 - Full control over environment
 - No vendor lock-in
 - Predictable costs
 
 **Cons:**
+
 - Requires server maintenance
 - Manual scaling
 - Need to manage SSL/HTTPS
@@ -35,11 +37,13 @@ Best for: Self-hosted infrastructure, maximum control
 Best for: Modern infrastructure, easy scaling
 
 **Pros:**
+
 - Consistent environments
 - Easy horizontal scaling
 - Platform independent
 
 **Cons:**
+
 - Container orchestration complexity
 - Requires container knowledge
 
@@ -48,11 +52,13 @@ Best for: Modern infrastructure, easy scaling
 Best for: Rapid deployment, minimal DevOps
 
 **Pros:**
+
 - Easy deployment
 - Managed infrastructure
 - Auto-scaling options
 
 **Cons:**
+
 - Vendor lock-in
 - Higher costs
 - Limited customization
@@ -170,7 +176,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - APP_ID=${APP_ID}
       - PRIVATE_KEY=${PRIVATE_KEY}
@@ -179,7 +185,13 @@ services:
       - LOG_LEVEL=info
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/probot', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/probot', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -191,8 +203,8 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
@@ -202,6 +214,7 @@ services:
 ```
 
 Run with:
+
 ```bash
 docker-compose up -d
 ```
@@ -211,16 +224,19 @@ docker-compose up -d
 ### Heroku
 
 1. **Install Heroku CLI**
+
    ```bash
    npm install -g heroku
    ```
 
 2. **Create Heroku App**
+
    ```bash
    heroku create cascading-merge-app
    ```
 
 3. **Set Environment Variables**
+
    ```bash
    heroku config:set APP_ID=your_app_id
    heroku config:set WEBHOOK_SECRET=your_secret
@@ -228,11 +244,13 @@ docker-compose up -d
    ```
 
 4. **Create Procfile**
+
    ```
    web: npm start
    ```
 
 5. **Deploy**
+
    ```bash
    git push heroku main
    ```
@@ -245,6 +263,7 @@ docker-compose up -d
 ### Azure App Service
 
 1. **Create App Service**
+
    ```bash
    az webapp create \
      --resource-group myResourceGroup \
@@ -254,6 +273,7 @@ docker-compose up -d
    ```
 
 2. **Configure Settings**
+
    ```bash
    az webapp config appsettings set \
      --resource-group myResourceGroup \
@@ -275,21 +295,25 @@ docker-compose up -d
 ### AWS Elastic Beanstalk
 
 1. **Install EB CLI**
+
    ```bash
    pip install awsebcli
    ```
 
 2. **Initialize**
+
    ```bash
    eb init -p node.js-20 cascading-merge-app
    ```
 
 3. **Create Environment**
+
    ```bash
    eb create production
    ```
 
 4. **Set Environment Variables**
+
    ```bash
    eb setenv \
      APP_ID=your_app_id \
@@ -305,6 +329,7 @@ docker-compose up -d
 ### Google Cloud Run
 
 1. **Build Container**
+
    ```bash
    gcloud builds submit --tag gcr.io/PROJECT_ID/cascading-merge-app
    ```
@@ -334,11 +359,13 @@ curl http://your-app-url/probot
 ### Logging Configuration
 
 **JSON Logging (Production)**
+
 ```bash
 LOG_FORMAT=json LOG_LEVEL=info npm start
 ```
 
 **Pretty Logging (Development)**
+
 ```bash
 LOG_FORMAT=pretty LOG_LEVEL=debug npm run dev
 ```
@@ -351,13 +378,14 @@ LOG_FORMAT=pretty LOG_LEVEL=debug npm run dev
 services:
   app:
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 ```
 
 **With Cloud Providers:**
+
 - Azure: Application Insights
 - AWS: CloudWatch Logs
 - GCP: Cloud Logging
@@ -428,7 +456,7 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
-        
+
         # Security headers
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -470,10 +498,12 @@ heroku ps:scale web=3
 ### Rate Limiting
 
 GitHub API has rate limits:
+
 - **5,000 requests/hour** for authenticated apps
 - **15,000 requests/hour** for Enterprise
 
 Monitor usage:
+
 ```bash
 # Check rate limit
 curl -H "Authorization: Bearer YOUR_TOKEN" \
@@ -490,24 +520,24 @@ services:
   loadbalancer:
     image: nginx:alpine
     ports:
-      - "80:80"
+      - '80:80'
     volumes:
       - ./nginx-lb.conf:/etc/nginx/nginx.conf
     depends_on:
       - app1
       - app2
       - app3
-      
+
   app1:
     build: .
     environment:
       - APP_ID=${APP_ID}
-      
+
   app2:
     build: .
     environment:
       - APP_ID=${APP_ID}
-      
+
   app3:
     build: .
     environment:
@@ -519,6 +549,7 @@ services:
 ### Common Issues
 
 **1. App won't start**
+
 ```bash
 # Check logs
 docker logs cascading-merge-app
@@ -527,17 +558,20 @@ kubectl logs deployment/cascading-merge-app
 ```
 
 **2. Webhook not receiving events**
+
 - Verify webhook URL in GitHub App settings
 - Check firewall/security group rules
 - Ensure app is publicly accessible
 - Test with webhook proxy (smee.io)
 
 **3. Authentication failures**
+
 - Verify APP_ID matches GitHub App
 - Check PRIVATE_KEY format (include newlines)
 - Ensure WEBHOOK_SECRET matches GitHub App
 
 **4. Memory issues**
+
 ```bash
 # Increase memory limit (Docker)
 docker run -m 512m cascading-merge-app
@@ -553,6 +587,7 @@ resources:
 ### Backup Strategy
 
 No database, but backup:
+
 1. GitHub App credentials
 2. Configuration files
 3. Deployment scripts

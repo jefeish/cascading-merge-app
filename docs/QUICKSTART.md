@@ -17,11 +17,12 @@ Get the Cascading Merge App running in **5 minutes**!
 git clone https://github.com/YOUR_ORG/cascading-merge-app.git
 cd cascading-merge-app
 npm install
-``` 
+```
 
 ### 2. Create GitHub App (2 min)
 
 **Option A: Automated** ⚡
+
 ```bash
 npm start  # Without .env file, triggers Probot's setup flow
 # Open http://localhost:3000, click "Register GitHub App"
@@ -30,14 +31,14 @@ npm start  # Without .env file, triggers Probot's setup flow
 
 **Option B: Manual** 📝  
 Go to: GitHub → Settings → Developer settings → GitHub Apps → New
+
 - **Permissions**: Contents (R/W), Issues (R/W), Pull requests (R/W), Metadata (Read)
 - **Events**: Pull request
 - **Webhook**: https://smee.io/new (get URL first)
 - **Secret**: `openssl rand -hex 20`
 - Generate & download private key
 
-### 3. Configure  The App (1 min)
-
+### 3. Configure The App (1 min)
 
 :warning: NOTE: If you used 'Option A', automated App installation, the basic App `.env` settings have already been done for you. You can skip to **4. (Step 2)**
 
@@ -46,6 +47,7 @@ cp .env.example .env
 ```
 
 Edit `.env`:
+
 ```bash
 APP_ID=123456                              # From app settings
 WEBHOOK_SECRET=abc...                      # Your secret
@@ -56,11 +58,14 @@ WEBHOOK_PROXY_URL=https://smee.io/abc...  # Smee URL
 ### 4. Start (1 min)
 
 Step 1
+
 ```bash
 # Terminal 1: Webhook proxy
 npx smee -u https://smee.io/YOUR_URL -t http://localhost:3000
 ```
+
 Step 2
+
 ```bash
 # Terminal 2: App
 npm run dev
@@ -78,11 +83,10 @@ In your test repo, create `.github/cascading-merge.yml`:
 prefixes:
   - 'release/'
 ref_branch: 'main'
-verbose: true  # Creates visual reports
+verbose: true # Creates visual reports
 ```
 
 **Commit to your default branch!**
-
 
 ### :warning: If you have any `Branch-Rulesets` that prevent Auto-Merging, you must add this App as a `Bypass-Actor` to the Ruleset!
 
@@ -94,6 +98,7 @@ verbose: true  # Creates visual reports
 4. **Watch cascade PRs appear automatically!** 🎉
 
 **Terminal shows:**
+
 ```
 INFO  Starting cascade merge from release/1.0
 INFO  Created PR #123: release/1.0 → release/2.0
@@ -104,12 +109,12 @@ INFO  Created PR #124: release/2.0 → main
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| "Webhook not received" | Check smee proxy is running |
+| Issue                     | Fix                                                       |
+| ------------------------- | --------------------------------------------------------- |
+| "Webhook not received"    | Check smee proxy is running                               |
 | "Configuration not found" | Ensure `.github/cascading-merge.yml` is on default branch |
-| "Authentication failed" | Verify `APP_ID` and `PRIVATE_KEY_PATH` |
-| Port 3000 in use | `lsof -ti:3000 \| xargs kill -9` |
+| "Authentication failed"   | Verify `APP_ID` and `PRIVATE_KEY_PATH`                    |
+| Port 3000 in use          | `lsof -ti:3000 \| xargs kill -9`                          |
 
 📖 **Detailed help**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
@@ -137,16 +142,19 @@ ref_branch: 'production'
 ## 🎯 Testing Different Scenarios
 
 ### Test 1: Simple Cascade
+
 ```
 release/1.0 → release/2.0 → main
 ```
 
 ### Test 2: With Conflicts
+
 1. Make different changes to same file on two branches
 2. Merge PR to earlier branch
 3. App will detect conflict and create issue
 
 ### Test 3: Multiple Prefixes
+
 ```yaml
 prefixes:
   - 'release/'

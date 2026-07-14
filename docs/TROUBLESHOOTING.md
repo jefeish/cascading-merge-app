@@ -37,6 +37,7 @@ Common issues and solutions for the Cascading Merge App.
 **Check these:**
 
 1. **Environment variables**
+
    ```bash
    # Verify required vars are set
    echo $APP_ID
@@ -45,6 +46,7 @@ Common issues and solutions for the Cascading Merge App.
    ```
 
 2. **Private key format**
+
    ```bash
    # Should include header/footer and newlines
    echo "$PRIVATE_KEY" | head -1
@@ -52,6 +54,7 @@ Common issues and solutions for the Cascading Merge App.
    ```
 
 3. **Dependencies installed**
+
    ```bash
    rm -rf node_modules package-lock.json
    npm install
@@ -89,12 +92,14 @@ Common issues and solutions for the Cascading Merge App.
 **Solutions:**
 
 1. **Check file location**
+
    ```bash
    # Must be at: .github/cascading-merge.yml
    git ls-files .github/
    ```
 
 2. **Verify YAML syntax**
+
    ```bash
    # Install yamllint
    brew install yamllint  # macOS
@@ -111,6 +116,7 @@ Common issues and solutions for the Cascading Merge App.
    ```
 
 **Valid config example:**
+
 ```yaml
 prefixes:
   - 'release/'
@@ -119,6 +125,7 @@ ref_branch: 'main'
 ```
 
 **Invalid examples:**
+
 ```yaml
 # ❌ Wrong: Uses tabs instead of spaces
 prefixes:
@@ -141,11 +148,12 @@ prefixes:
 **Check:**
 
 1. **Branch matches prefix**
+
    ```yaml
    # Config has:
    prefixes:
      - 'release/'
-   
+
    # Branch must start with 'release/'
    # ✅ release/1.0
    # ❌ releases/1.0 (wrong prefix)
@@ -155,6 +163,7 @@ prefixes:
    - GitHub shows "Merged" badge, not "Closed"
 
 3. **App is installed on repository**
+
    ```bash
    # Check GitHub App installations
    # Go to: Settings → Installed GitHub Apps
@@ -181,20 +190,22 @@ prefixes:
    - Should show delivery attempts
 
 2. **Check webhook URL**
+
    ```bash
    # For local dev, should use smee.io or ngrok
    # For production, should be your public URL
-   
+
    # Test if app is reachable
    curl http://your-webhook-url/probot
    # Should return: GET request to /probot is not supported
    ```
 
 3. **Firewall/Network issues**
+
    ```bash
    # If using smee.io proxy
    npx smee -u https://smee.io/YOUR_URL -t http://localhost:3000
-   
+
    # If using ngrok
    ngrok http 3000
    ```
@@ -204,7 +215,7 @@ prefixes:
    # Must match between:
    # - GitHub App webhook secret
    # - .env WEBHOOK_SECRET
-   
+
    # Probot will reject mismatched signatures
    ```
 
@@ -233,12 +244,14 @@ prefixes:
 **Solutions:**
 
 1. **Check current rate limit**
+
    ```bash
    curl -H "Authorization: Bearer YOUR_TOKEN" \
      https://api.github.com/rate_limit
    ```
 
 2. **Implement backoff** (already in code)
+
    ```typescript
    // App already retries with exponential backoff
    // Check logs for retry attempts
@@ -259,6 +272,7 @@ prefixes:
 **Solutions:**
 
 1. **Regenerate installation token**
+
    ```bash
    # App automatically manages tokens
    # If persisting, regenerate private key:
@@ -266,6 +280,7 @@ prefixes:
    ```
 
 2. **Check APP_ID**
+
    ```bash
    # Must match GitHub App ID (numeric)
    echo $APP_ID
@@ -289,15 +304,19 @@ prefixes:
 **Check logs for:**
 
 1. **Merge conflicts**
+
    ```
    "Could not auto merge PR #123 due to merge conflicts"
    ```
+
    → Manual intervention required
 
 2. **No commits between branches**
+
    ```
    "There are no commits between branch1 and branch2"
    ```
+
    → Expected behavior, cascade continues
 
 3. **PR already exists**
@@ -334,6 +353,7 @@ prefixes:
 **Debug:**
 
 1. **Check branch names**
+
    ```bash
    # App expects semantic versioning
    # Correct: release/1.0, release/1.1, release/2.0
@@ -344,7 +364,7 @@ prefixes:
    ```typescript
    // The algorithm hasn't changed from original Action
    // If order is wrong, it was likely wrong in Action too
-   
+
    // Test locally:
    npm test -- --verbose
    // Check "Performs a simple cascade" test
@@ -362,6 +382,7 @@ prefixes:
    - Consider consolidating old release branches
 
 2. **Check API latency**
+
    ```bash
    # Monitor GitHub API response times
    curl -w "@curl-format.txt" -o /dev/null -s \
@@ -381,15 +402,17 @@ prefixes:
 **Solutions:**
 
 1. **Monitor memory**
+
    ```bash
    # Docker
    docker stats cascading-merge-app
-   
+
    # Node.js
    node --max-old-space-size=512 dist/index.js
    ```
 
 2. **Check for memory leaks**
+
    ```bash
    npm install -g clinic
    clinic doctor -- node dist/index.js
@@ -450,11 +473,13 @@ const mockContext = {
     repos: {
       getContent: async () => ({
         data: {
-          content: Buffer.from(`
+          content: Buffer.from(
+            `
 prefixes:
   - 'release/'
 ref_branch: 'main'
-          `).toString('base64')
+          `
+          ).toString('base64')
         }
       })
     }
@@ -467,6 +492,7 @@ console.log('Config loaded:', config)
 ```
 
 Run:
+
 ```bash
 node test-config.js
 ```
@@ -483,6 +509,7 @@ npm test -- --testNamePattern="simple cascade"
 If these solutions don't resolve your issue:
 
 1. **Enable debug logging** and capture full logs
+
    ```bash
    LOG_LEVEL=debug npm run dev 2>&1 | tee debug.log
    ```
@@ -490,6 +517,7 @@ If these solutions don't resolve your issue:
 2. **Check GitHub Status**: https://www.githubstatus.com
 
 3. **Review recent changes**
+
    ```bash
    git log --oneline -10
    ```
@@ -501,7 +529,7 @@ If these solutions don't resolve your issue:
    - Steps to reproduce
    - Expected vs actual behavior
 
-5. **Search existing issues**: 
+5. **Search existing issues**:
    https://github.com/YOUR_ORG/cascading-merge-app/issues
 
 ---

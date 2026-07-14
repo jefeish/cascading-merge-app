@@ -1,0 +1,57 @@
+name: Format
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting and calculate score
+        run: |
+          mkdir -p .badges
+          npm run format:check > format-output.txt 2>&1 || true
+          
+          # Count total files checked
+          TOTAL=$(find src __tests__ -name '*.ts' -o -name '*.js' | wc -l | tr -d ' ')
+          # Count files that need formatting (Prettier lists them)
+          NEEDS_FORMAT=$(grep -c "src/\|__tests__/" format-output.txt || echo "0")
+          CLEAN=$((TOTAL - NEEDS_FORMAT))
+          PERCENTAGE=$((CLEAN * 100 / TOTAL))
+          
+          # Determine color
+          if [ $PERCENTAGE -ge 90 ]; then COLOR="brightgreen"; 
+          elif [ $PERCENTAGE -ge 70 ]; then COLOR="yellow";
+          else COLOR="orange"; fi
+          
+          # Create badge JSON
+          echo "{\"schemaVersion\": 1, \"label\": \"format\", \"message\": \"${PERCENTAGE}%\", \"color\": \"${COLOR}\"}" > .badges/format.json
+          cat .badges/format.json
+        continue-on-error: true
+
+      - name: Commit badge data
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .badges/format.json
+          git diff --staged --quiet || git commit -m "Update format badge [skip ci]"
+          git push

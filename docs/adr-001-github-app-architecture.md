@@ -1,5 +1,5 @@
 ---
-description: "Architecture Decision Record for translating cascading-downstream-merge GitHub Action to a GitHub App"
+description: 'Architecture Decision Record for translating cascading-downstream-merge GitHub Action to a GitHub App'
 date: 2026-07-10
 status: Accepted
 ---

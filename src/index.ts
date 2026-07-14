@@ -30,9 +30,10 @@ export default (app: Probot) => {
     // Check if this PR was created by the bot (cascade PR)
     // Bot PRs should NOT trigger cascade logic because all cascade PRs
     // were already created by the original PR
-    const isBotPR = pull_request.user.type === 'Bot' || 
-                    pull_request.title.startsWith('Automatic merge from')
-    
+    const isBotPR =
+      pull_request.user.type === 'Bot' ||
+      pull_request.title.startsWith('Automatic merge from')
+
     if (isBotPR) {
       context.log.info(
         `PR #${pull_request.number} is a bot-created cascade PR, skipping cascade logic (all cascade PRs already created by original PR)`
@@ -92,9 +93,7 @@ export default (app: Probot) => {
         config.verbose ?? false
       )
 
-      context.log.info(
-        `Cascade merge completed for PR #${pull_request.number}`
-      )
+      context.log.info(`Cascade merge completed for PR #${pull_request.number}`)
     } catch (error: any) {
       context.log.error(
         `Error processing cascade merge for PR #${pull_request.number} in ${repository.full_name}: ${error.message}`

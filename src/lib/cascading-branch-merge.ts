@@ -33,7 +33,7 @@ export async function cascadingBranchMerge(
   verbose: boolean = false
 ) {
   let success = true
-  
+
   // Track created PRs for verbose reporting
   const createdPRs: Array<{
     prNumber: number
@@ -273,14 +273,17 @@ async function createCascadeReport(
 
   // Build the Mermaid gitGraph diagram
   // Use init directive to set the feature branch as the main branch so the diagram starts there
-  let mermaidDiagram = '```mermaid\n%%{init: {\'gitGraph\': {\'mainBranchName\': \'' + headBranch + '\'}}}%%\ngitGraph\n'
-  
+  let mermaidDiagram =
+    "```mermaid\n%%{init: {'gitGraph': {'mainBranchName': '" +
+    headBranch +
+    "'}}}%%\ngitGraph\n"
+
   // Start on the head branch (feature branch)
   mermaidDiagram += `  commit id: "Feature changes"\n`
   mermaidDiagram += `  branch "${baseBranch}"\n`
   mermaidDiagram += `  checkout "${baseBranch}"\n`
   mermaidDiagram += `  commit id: "PR #${pullNumber} merged"\n`
-  
+
   // Add each cascade PR as a branch from its source
   for (const pr of createdPRs) {
     if (!pr.skipped) {
@@ -290,15 +293,17 @@ async function createCascadeReport(
       mermaidDiagram += `  commit id: "PR #${pr.prNumber}"\n`
     }
   }
-  
+
   mermaidDiagram += '```'
 
   // Build the PR summary table
   let prTable = '| PR # | Source Branch | Target Branch | Status |\n'
   prTable += '|------|---------------|---------------|--------|\n'
-  
+
   for (const pr of createdPRs) {
-    const status = pr.skipped ? '⏭️ Skipped (no commits)' : '✅ Created & Merged'
+    const status = pr.skipped
+      ? '⏭️ Skipped (no commits)'
+      : '✅ Created & Merged'
     const prLink = pr.skipped ? '-' : `#${pr.prNumber}`
     prTable += `| ${prLink} | \`${pr.sourceBranch}\` | \`${pr.targetBranch}\` | ${status} |\n`
   }

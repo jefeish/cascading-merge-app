@@ -7,7 +7,7 @@ This guide covers two methods for creating and installing the Cascading Merge Ap
 ## 📋 Prerequisites
 
 - Node.js 20 or higher
-- npm 8 or higher  
+- npm 8 or higher
 - Admin access to a GitHub organization or repository
 - (For local development) smee.io account or webhook proxy
 
@@ -59,7 +59,9 @@ Select the repositories where you want the app to run.
 ```bash
 npm run dev
 ```
+
 or
+
 ```bash
 npm start
 ```
@@ -75,7 +77,7 @@ Create the GitHub App manually through the GitHub UI.
 2. **Basic Information:**
    - **App name:** `cascading-merge-app` (or your preferred name)
    - **Homepage URL:** `https://github.com/YOUR_ORG/cascading-merge-app`
-   - **Webhook URL:** 
+   - **Webhook URL:**
      - For local dev: `https://smee.io/YOUR_CHANNEL` (get from https://smee.io/new)
      - For production: Your deployed app URL + `/api/github/webhooks`
    - **Webhook secret:** Generate with `openssl rand -hex 20`
@@ -181,6 +183,7 @@ INFO  Cascading Merge App loaded!
 Visit: `https://github.com/apps/YOUR_APP_NAME`
 
 You should see:
+
 - ✅ App is active
 - ✅ Installed on X repositories
 - ✅ Recent webhook deliveries
@@ -192,6 +195,7 @@ You should see:
 **Cause:** App not reachable at webhook URL
 
 **Solutions:**
+
 - For local dev: Ensure smee.io proxy is running
 - For production: Verify your app is deployed and accessible
 - Check firewall/network settings
@@ -201,6 +205,7 @@ You should see:
 **Cause:** App doesn't have required permissions
 
 **Solution:**
+
 1. Go to App settings → Permissions & events
 2. Update repository permissions
 3. Click **Save changes**
@@ -211,6 +216,7 @@ You should see:
 **Cause:** Invalid credentials in `.env`
 
 **Solutions:**
+
 - Verify APP_ID matches your GitHub App
 - Check WEBHOOK_SECRET matches app settings
 - Ensure PRIVATE_KEY or PRIVATE_KEY_PATH is correct
@@ -221,6 +227,7 @@ You should see:
 **Cause:** Webhook configuration issue
 
 **Checklist:**
+
 - [ ] smee.io proxy running (local dev)
 - [ ] WEBHOOK_PROXY_URL set in `.env` (local dev)
 - [ ] Webhook URL correct in GitHub App settings
@@ -234,6 +241,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more issues.
 For production deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Key differences for production:
+
 - No webhook proxy needed
 - Set `NODE_ENV=production`
 - Use actual HTTPS endpoint for webhook URL

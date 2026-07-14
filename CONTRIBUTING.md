@@ -32,17 +32,20 @@ By participating in this project, you agree to maintain a respectful and inclusi
 1. Fork the repository on GitHub
 
 2. Clone your fork:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/cascading-merge-app.git
    cd cascading-merge-app
    ```
 
 3. Add the upstream remote:
+
    ```bash
    git remote add upstream https://github.com/ORIGINAL_OWNER/cascading-merge-app.git
    ```
 
 4. Install dependencies:
+
    ```bash
    npm install
    ```
@@ -50,12 +53,14 @@ By participating in this project, you agree to maintain a respectful and inclusi
 5. Create a test GitHub App (see [README.md](README.md#installation))
 
 6. Set up your `.env` file:
+
    ```bash
    cp .env.example .env
    # Edit .env with your GitHub App credentials
    ```
 
 7. Build the project:
+
    ```bash
    npm run build
    ```
@@ -78,17 +83,20 @@ By participating in this project, you agree to maintain a respectful and inclusi
 ### Making Changes
 
 1. Create a feature branch:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
 2. Make your changes with clear, focused commits:
+
    ```bash
    git add .
    git commit -m "feat: add new feature"
    ```
 
 3. Keep your branch up to date:
+
    ```bash
    git fetch upstream
    git rebase upstream/main
@@ -104,16 +112,19 @@ By participating in this project, you agree to maintain a respectful and inclusi
 ### Running Tests
 
 Run all tests:
+
 ```bash
 npm test
 ```
 
 Run tests in watch mode during development:
+
 ```bash
 npm test -- --watch
 ```
 
 Run tests with coverage:
+
 ```bash
 npm test -- --coverage
 ```
@@ -126,6 +137,7 @@ npm test -- --coverage
 - Aim for >80% code coverage on new code
 
 Example test structure:
+
 ```typescript
 import { jest } from '@jest/globals'
 import { functionToTest } from '../src/lib/module.js'
@@ -138,10 +150,10 @@ describe('Module Name', () => {
   it('should do something specific', () => {
     // Arrange
     const input = 'test'
-    
+
     // Act
     const result = functionToTest(input)
-    
+
     // Assert
     expect(result).toBe('expected')
   })
@@ -194,6 +206,7 @@ Follow conventional commits format:
 ```
 
 Types:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -203,6 +216,7 @@ Types:
 - `chore`: Build process or auxiliary tool changes
 
 Examples:
+
 ```
 feat(config): add support for multiple ref branches
 
@@ -239,22 +253,27 @@ docs: update installation instructions
    - Screenshots/logs if applicable
 
 3. PR template checklist:
+
    ```markdown
    ## Description
+
    Brief description of changes
 
    ## Type of Change
+
    - [ ] Bug fix
    - [ ] New feature
    - [ ] Breaking change
    - [ ] Documentation update
 
    ## Testing
+
    - [ ] Tests pass locally
    - [ ] New tests added
    - [ ] Tested with real GitHub App
 
    ## Checklist
+
    - [ ] Code follows style guidelines
    - [ ] Self-reviewed code
    - [ ] Commented hard-to-understand areas
@@ -305,11 +324,13 @@ cascading-merge-app/
 ### Local Development
 
 1. Start the app in dev mode:
+
    ```bash
    npm run dev
    ```
 
 2. Set debug logging:
+
    ```bash
    LOG_LEVEL=debug npm run dev
    ```
@@ -326,6 +347,7 @@ cascading-merge-app/
 ### Testing Webhook Payloads
 
 1. Create a webhook payload JSON file:
+
    ```json
    {
      "action": "closed",

@@ -75,7 +75,10 @@ function validateConfig(
   }
 
   // Validate ref_branch
-  if (typeof result.ref_branch !== 'string' || result.ref_branch.trim() === '') {
+  if (
+    typeof result.ref_branch !== 'string' ||
+    result.ref_branch.trim() === ''
+  ) {
     throw new Error(
       'Configuration error: "ref_branch" must be a non-empty string'
     )

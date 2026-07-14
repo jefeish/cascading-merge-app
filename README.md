@@ -1,7 +1,10 @@
 ![logo](docs/images/logo.svg)
+
 # CASCADE-MERGE-APP
 
 [![TEST](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml/badge.svg)](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml)
+[![Lint](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/lint.json)](https://github.com/jefeish/cascading-merge-app/actions/workflows/lint.yml)
+[![Format](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/format.json)](https://github.com/jefeish/cascading-merge-app/actions/workflows/format.yml)
 
 Automatically cascade changes to newer release branches and reduce the need for manual branch maintenance.
 
@@ -58,6 +61,7 @@ For step-by-step manual setup instructions, see the **[Installation Guide](docs/
 ### Running Locally (Development)
 
 1. Start the webhook proxy (if using smee.io):
+
    ```bash
    npx smee -u https://smee.io/your-unique-url -t http://localhost:3000
    ```
@@ -76,6 +80,7 @@ npm start
 ```
 
 For production deployment, consider:
+
 - Using a process manager like PM2
 - Setting up HTTPS with a reverse proxy (nginx/Apache)
 - Storing the private key as an environment variable instead of a file
@@ -103,21 +108,23 @@ See the complete configuration example with documentation: [`.github/cascading-m
 
 ### Configuration Options
 
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `prefixes` | Yes | `['release/']` | Array of branch prefixes to include in cascades |
-| `ref_branch` | Yes | `'develop'` | Final branch in the cascade sequence |
-| `verbose` | No | `false` | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
+| Option       | Required | Default        | Description                                                         |
+| ------------ | -------- | -------------- | ------------------------------------------------------------------- |
+| `prefixes`   | Yes      | `['release/']` | Array of branch prefixes to include in cascades                     |
+| `ref_branch` | Yes      | `'develop'`    | Final branch in the cascade sequence                                |
+| `verbose`    | No       | `false`        | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
 
 ### Example Workflow
 
 With this configuration and branches:
+
 - `release/1.0`
 - `release/1.1`
 - `release/2.0`
 - `main`
 
 When a PR is merged into `release/1.0`, the app will:
+
 1. Create a PR from `release/1.0` → `release/1.1`
 2. Auto-merge if no conflicts
 3. Create a PR from `release/1.1` → `release/2.0`
@@ -127,6 +134,7 @@ When a PR is merged into `release/1.0`, the app will:
 7. **(If `verbose: true`)** Create an Issue with cascade report and Mermaid diagram
 
 If any merge fails due to conflicts, it:
+
 - Stops the cascade at that point
 - Creates an issue assigning the PR author
 - Adds a comment to the original PR
@@ -134,6 +142,7 @@ If any merge fails due to conflicts, it:
 ### Missing Configuration
 
 If a repository doesn't have a `.github/cascading-merge.yml` file, **the app will skip cascade merge processing for that repository**. This ensures:
+
 - **Explicit opt-in**: Only repositories that create a config file will have cascade merging enabled
 - **Safe org-wide installations**: Install the app across an entire organization without triggering unexpected cascades
 - **No magic defaults**: Every repository explicitly defines its cascade behavior
@@ -158,18 +167,18 @@ npm test -- --watch
 
 Complete documentation suite:
 
-| Document | Description |
-|----------|-------------|
-| **[Quick Start Guide](docs/QUICKSTART.md)** | ⚡ Get running in 5 minutes |
-| **[Installation Guide](docs/INSTALLATION.md)** | 📦 Automated & manual setup |
-| **[Configuration Example](.github/cascading-merge.yml.example)** | ⚙️ Complete config with all options |
-| **[Deployment Guide](docs/DEPLOYMENT.md)** | 🚀 Production deployment (Docker, Cloud platforms) |
-| **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** | 🐛 Common issues and solutions |
-| **[Sequence Diagram](docs/cascade-sequence.md)** | 📊 Visual flow diagrams |
-| **[Contributing Guide](CONTRIBUTING.md)** | 🤝 How to contribute |
-| **[Architecture Decisions](docs/adr-001-github-app-architecture.md)** | 🏗️ Technical design decisions |
-| **[Changelog](CHANGELOG.md)** | 📝 Version history |
-| **[License](LICENSE)** | ⚖️ MIT License |
+| Document                                                              | Description                                        |
+| --------------------------------------------------------------------- | -------------------------------------------------- |
+| **[Quick Start Guide](docs/QUICKSTART.md)**                           | ⚡ Get running in 5 minutes                        |
+| **[Installation Guide](docs/INSTALLATION.md)**                        | 📦 Automated & manual setup                        |
+| **[Configuration Example](.github/cascading-merge.yml.example)**      | ⚙️ Complete config with all options                |
+| **[Deployment Guide](docs/DEPLOYMENT.md)**                            | 🚀 Production deployment (Docker, Cloud platforms) |
+| **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**                  | 🐛 Common issues and solutions                     |
+| **[Sequence Diagram](docs/cascade-sequence.md)**                      | 📊 Visual flow diagrams                            |
+| **[Contributing Guide](CONTRIBUTING.md)**                             | 🤝 How to contribute                               |
+| **[Architecture Decisions](docs/adr-001-github-app-architecture.md)** | 🏗️ Technical design decisions                      |
+| **[Changelog](CHANGELOG.md)**                                         | 📝 Version history                                 |
+| **[License](LICENSE)**                                                | ⚖️ MIT License                                     |
 
 ## 🏗️ Architecture
 
