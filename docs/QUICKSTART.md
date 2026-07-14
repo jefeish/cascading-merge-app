@@ -36,7 +36,7 @@ Go to: GitHub → Settings → Developer settings → GitHub Apps → New
 ### 3. Configure  The App (1 min)
 
 
-:warning: NOTE: If you used 'option 1', automated App installation, the basic App `.env` settings have already been done for you. You can skip to **4. (Step 2)**
+:warning: NOTE: If you used 'Option A', automated App installation, the basic App `.env` settings have already been done for you. You can skip to **4. (Step 2)**
 
 ```bash
 cp .env.example .env
