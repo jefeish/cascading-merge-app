@@ -1,6 +1,8 @@
 ![logo](docs/images/logo.svg)
 # CASCADE-MERGE-APP
 
+[![CI](https://github.com/ActionsDesk/cascading-merge-app/actions/workflows/ci.yml/badge.svg)](https://github.com/ActionsDesk/cascading-merge-app/actions/workflows/ci.yml)
+
 Automatically cascade changes to newer release branches and reduce the need for manual branch maintenance.
 
 This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.atlassian.com/bitbucketserver/automatic-branch-merging-776639993.html) feature and preserves the exact branch ordering algorithm to ensure semantic versioning compatibility.
