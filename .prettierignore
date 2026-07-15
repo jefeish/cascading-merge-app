@@ -1,0 +1,9 @@
+# Generated files
+.badges/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
