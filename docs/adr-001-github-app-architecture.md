@@ -12,19 +12,20 @@ status: Accepted
 
 ## Context
 
-The `cascading-downstream-merge` GitHub Action successfully automates cascading merges across release branches using semantic versioning. However, GitHub Actions have inherent limitations:
+The `cascading-downstream-merge` GitHub Action successfully automates cascading merges across release branches using semantic versioning. However, GitHub Actions have inherent limitations, the one that concerns us most is the limit on Rulesets support for **Bypass-Actors** :
 
-- **Workflow Dependency**: Requires users to configure workflows in each repository
 - **Token Management**: Complex handling of tokens for bypass permissions
-- **Visibility**: Limited centralized visibility across multiple repositories
-- **Installation**: Each repository needs workflow file setup
+- **PAT Token Rate Limits**: PAT's have a 5000 requests/hour limit
+- **Requirement of Service Accounts**: PAT's should not be associated to specific user 
+~~- **Workflow Dependency**: Requires users to configure workflows in each repository~~
+~~- **Installation**: Each repository needs workflow file setup~~
 
 We need to translate this functionality into a GitHub App to provide:
 
 - One-time installation per organization/repository
 - Centralized management and monitoring capabilities
-- Native GitHub App authentication with installation tokens
-- Simplified user experience with configuration-file-based setup
+- **Native GitHub App authentication with installation tokens (15000 requests/hour)**
+- Simplified user experience with configuration-file-based setup (Yaml)
 
 The core business logic must be preserved, including:
 
