@@ -3,7 +3,7 @@ name: Lint
 on:
   workflow_dispatch:
   push:
-    branches: [main]  
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -30,18 +30,18 @@ jobs:
         run: |
           mkdir -p .badges
           npm run lint > lint-output.txt 2>&1 || true
-          
+
           # Count total files and files with problems
           TOTAL=$(find src __tests__ -name '*.ts' -o -name '*.js' | wc -l | tr -d ' ')
           PROBLEMS=$(grep -c "problem" lint-output.txt || echo "0")
           CLEAN=$((TOTAL - PROBLEMS))
           PERCENTAGE=$((CLEAN * 100 / TOTAL))
-          
+
           # Determine color
           if [ $PERCENTAGE -ge 90 ]; then COLOR="brightgreen"; 
           elif [ $PERCENTAGE -ge 70 ]; then COLOR="yellow";
           else COLOR="orange"; fi
-          
+
           # Create badge JSON
           echo "{\"schemaVersion\": 1, \"label\": \"lint\", \"message\": \"${PERCENTAGE}%\", \"color\": \"${COLOR}\"}" > .badges/lint.json
           cat .badges/lint.json
