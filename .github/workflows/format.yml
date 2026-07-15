@@ -55,4 +55,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add .badges/format.json
           git diff --staged --quiet || git commit -m "Update format badge [skip ci]"
+          git pull --rebase origin main
           git push
