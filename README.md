@@ -3,8 +3,8 @@
 # CASCADE-MERGE-APP
 
 [![TEST](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml/badge.svg)](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml)
-[![Lint](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/lint.json)](https://github.com/jefeish/cascading-merge-app/actions/workflows/lint.yml)
-[![Format](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/format.json)](https://github.com/jefeish/cascading-merge-app/actions/workflows/format.yml)
+[![Lint](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/lint.json&cacheSeconds=0)](https://github.com/jefeish/cascading-merge-app/actions/workflows/lint.yml)
+[![Format](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/format.json&cacheSeconds=0)](https://github.com/jefeish/cascading-merge-app/actions/workflows/format.yml)
 
 Automatically cascade changes to newer release branches and reduce the need for manual branch maintenance.
 
