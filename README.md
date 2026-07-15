@@ -3,8 +3,6 @@
 # CASCADE-MERGE-APP
 
 [![TEST](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml/badge.svg)](https://github.com/jefeish/cascading-merge-app/actions/workflows/test.yml)
-[![Lint](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/lint.json&cacheSeconds=0)](https://github.com/jefeish/cascading-merge-app/actions/workflows/lint.yml)
-[![Format](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jefeish/cascading-merge-app/main/.badges/format.json&cacheSeconds=0)](https://github.com/jefeish/cascading-merge-app/actions/workflows/format.yml)
 
 Automatically cascade changes to newer release branches and reduce the need for manual branch maintenance.
 
@@ -114,6 +112,18 @@ See the complete configuration example with documentation: [`.github/cascading-m
 | `ref_branch` | Yes      | `'develop'`    | Final branch in the cascade sequence                                |
 | `verbose`    | No       | `false`        | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
 
+### Missing Configuration
+
+If a repository doesn't have a `.github/cascading-merge.yml` file, **the app will skip cascade merge processing for that repository**. This ensures:
+
+- **Explicit opt-in**: Only repositories that create a config file will have cascade merging enabled
+- **Safe org-wide installations**: Install the app across an entire organization without triggering unexpected cascades
+- **No magic defaults**: Every repository explicitly defines its cascade behavior
+
+To enable cascade merging, create `.github/cascading-merge.yml` in your repository's default branch.
+
+---
+
 ### Example Workflow
 
 With this configuration and branches:
@@ -139,15 +149,7 @@ If any merge fails due to conflicts, it:
 - Creates an issue assigning the PR author
 - Adds a comment to the original PR
 
-### Missing Configuration
-
-If a repository doesn't have a `.github/cascading-merge.yml` file, **the app will skip cascade merge processing for that repository**. This ensures:
-
-- **Explicit opt-in**: Only repositories that create a config file will have cascade merging enabled
-- **Safe org-wide installations**: Install the app across an entire organization without triggering unexpected cascades
-- **No magic defaults**: Every repository explicitly defines its cascade behavior
-
-To enable cascade merging, create `.github/cascading-merge.yml` in your repository's default branch.
+---
 
 ## 🧪 Testing
 
