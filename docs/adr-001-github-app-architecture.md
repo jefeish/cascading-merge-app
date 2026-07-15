@@ -16,9 +16,9 @@ The `cascading-downstream-merge` GitHub Action successfully automates cascading 
 
 - **Token Management**: Complex handling of tokens for bypass permissions
 - **PAT Token Rate Limits**: PAT's have a 5000 requests/hour limit
-- **Requirement of Service Accounts**: PAT's should not be associated to specific user 
-~~- **Workflow Dependency**: Requires users to configure workflows in each repository~~
-~~- **Installation**: Each repository needs workflow file setup~~
+- **Requirement of Service Accounts**: PAT's should not be associated with a "real" user 
+- ~~**Workflow Dependency**: Requires users to configure workflows in each repository~~
+- ~~**Installation**: Each repository needs workflow file setup~~
 
 We need to translate this functionality into a GitHub App to provide:
 
