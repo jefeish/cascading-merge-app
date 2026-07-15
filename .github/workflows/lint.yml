@@ -30,17 +30,29 @@ jobs:
         run: |
           mkdir -p .badges
           npm run lint > lint-output.txt 2>&1 || true
+          
+          echo "=== Debug: Lint Output ==="
+          cat lint-output.txt
+          echo "=========================="
 
           # Count total files and files with problems
           TOTAL=$(find src __tests__ -name '*.ts' -o -name '*.js' | wc -l | tr -d ' ')
+          echo "DEBUG: TOTAL files = $TOTAL"
+          
           PROBLEMS=$(grep -c "problem" lint-output.txt || echo "0")
+          echo "DEBUG: PROBLEMS count = $PROBLEMS"
+          
           CLEAN=$((TOTAL - PROBLEMS))
+          echo "DEBUG: CLEAN files = $CLEAN"
+          
           PERCENTAGE=$((CLEAN * 100 / TOTAL))
+          echo "DEBUG: PERCENTAGE = $PERCENTAGE%"
 
           # Determine color
           if [ $PERCENTAGE -ge 90 ]; then COLOR="brightgreen"; 
           elif [ $PERCENTAGE -ge 70 ]; then COLOR="yellow";
           else COLOR="orange"; fi
+          echo "DEBUG: COLOR = $COLOR"
 
           # Create badge JSON
           echo "{\"schemaVersion\": 1, \"label\": \"lint\", \"message\": \"${PERCENTAGE}%\", \"color\": \"${COLOR}\"}" > .badges/lint.json
