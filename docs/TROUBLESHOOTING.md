@@ -87,7 +87,7 @@ Common issues and solutions for the Cascading Merge App.
 
 ### Config File Not Loading
 
-**Problem:** App says "Configuration not found" or uses defaults
+**Problem:** App says "Configuration not found" or skips cascade processing
 
 **Solutions:**
 
@@ -122,7 +122,10 @@ prefixes:
   - 'release/'
   - 'hotfix/'
 ref_branch: 'main'
+maxMergeDepth: 5
 ```
+
+If `.env` sets `MAX_MERGE_DEPTH`, repository `maxMergeDepth` cannot exceed that global cap value.
 
 **Invalid examples:**
 
@@ -203,8 +206,8 @@ prefixes:
 3. **Firewall/Network issues**
 
    ```bash
-   # If using smee.io proxy
-   npx smee -u https://smee.io/YOUR_URL -t http://localhost:3000
+   # For local development, verify WEBHOOK_PROXY_URL is set correctly in .env
+   # Probot handles the proxy connection internally when running `npm run dev`.
 
    # If using ngrok
    ngrok http 3000

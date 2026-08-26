@@ -134,6 +134,9 @@ PRIVATE_KEY_PATH=./private-key.pem
 WEBHOOK_PROXY_URL=https://smee.io/YOUR_CHANNEL
 LOG_LEVEL=debug
 NODE_ENV=development
+
+# Optional global hard cap for cascade depth
+MAX_MERGE_DEPTH=5
 ```
 
 ### Step 5: Install the App
@@ -149,10 +152,7 @@ NODE_ENV=development
 ### Step 6: Start Development
 
 ```bash
-# Terminal 1: Start webhook proxy (for local dev)
-npx smee -u https://smee.io/YOUR_CHANNEL -t http://localhost:3000
-
-# Terminal 2: Start the app
+# Start the app (Probot uses WEBHOOK_PROXY_URL from .env)
 npm run dev
 ```
 
@@ -175,8 +175,11 @@ INFO  Cascading Merge App loaded!
 3. Check the terminal logs - you should see:
    ```
    INFO  Processing merged PR #123: Your PR title
-   INFO  Configuration loaded: prefixes=[release/], ref_branch=main
+   INFO  Configuration loaded: prefixes=[release/], ref_branch=main, verbose=true, maxMergeDepth=5
+   INFO  Global max merge depth cap: 5
    ```
+
+If both global and repository-level depth values are set, the app applies the lower value.
 
 ### Check GitHub App
 
@@ -196,7 +199,7 @@ You should see:
 
 **Solutions:**
 
-- For local dev: Ensure smee.io proxy is running
+- For local dev: Ensure `WEBHOOK_PROXY_URL` is valid in `.env`
 - For production: Verify your app is deployed and accessible
 - Check firewall/network settings
 
@@ -228,7 +231,6 @@ You should see:
 
 **Checklist:**
 
-- [ ] smee.io proxy running (local dev)
 - [ ] WEBHOOK_PROXY_URL set in `.env` (local dev)
 - [ ] Webhook URL correct in GitHub App settings
 - [ ] App is actually installed on the repository

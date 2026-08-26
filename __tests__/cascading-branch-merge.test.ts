@@ -240,6 +240,150 @@ describe('Cascading Branch Merge', () => {
     expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
   })
 
+  it('Carries originating PR title into downstream merge commits', async () => {
+    const originatingTitle = 'ABC-1234 Improve release notes'
+    const originatingSource = 'jefeish/release/2026-01-20'
+
+    await cascadingBranchMerge(
+      ['release/'],
+      'develop',
+      'my-feature',
+      'release/2.0',
+      mockOwner,
+      mockRepo,
+      mockOctokit,
+      mockPullNumber,
+      mockActor,
+      mockLogger,
+      false,
+      undefined,
+      originatingTitle,
+      originatingSource
+    )
+
+    expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: mockOwner,
+        repo: mockRepo,
+        pull_number: 1,
+        commit_title: `PR #1 from ${originatingSource}: ${originatingTitle}`,
+        commit_message: expect.stringContaining('Originating PR #1')
+      })
+    )
+  })
+
+  it('Still performs final ref_branch merge when maxMergeDepth is reached', async () => {
+    await cascadingBranchMerge(
+      ['release/'],
+      'develop',
+      'my-feature',
+      'release/1.0',
+      mockOwner,
+      mockRepo,
+      mockOctokit,
+      mockPullNumber,
+      mockActor,
+      mockLogger,
+      false,
+      2
+    )
+
+    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(3)
+    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
+      owner: mockOwner,
+      repo: mockRepo,
+      base: 'release/1.1',
+      head: 'release/1.0',
+      title: expect.anything(),
+      body: expect.anything()
+    })
+    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+      owner: mockOwner,
+      repo: mockRepo,
+      base: 'release/1.1-1',
+      head: 'release/1.1',
+      title: expect.anything(),
+      body: expect.anything()
+    })
+    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(3, {
+      owner: mockOwner,
+      repo: mockRepo,
+      base: 'develop',
+      head: 'release/1.1-1',
+      title: expect.anything(),
+      body: expect.anything()
+    })
+
+    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+      owner: mockOwner,
+      repo: mockRepo,
+      issue_number: mockPullNumber,
+      body: 'Reached configured max merge depth (2). Performed a final merge to __develop__ and stopped.'
+    })
+    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+      owner: mockOwner,
+      repo: mockRepo,
+      issue_number: mockPullNumber,
+      body: ':white_check_mark: Auto-merge was successful.'
+    })
+  })
+
+  it('Includes maxMergeDepth source note in verbose report when depth is reached', async () => {
+    await cascadingBranchMerge(
+      ['release/'],
+      'develop',
+      'my-feature',
+      'release/1.0',
+      mockOwner,
+      mockRepo,
+      mockOctokit,
+      mockPullNumber,
+      mockActor,
+      mockLogger,
+      true,
+      2,
+      undefined,
+      undefined,
+      'global'
+    )
+
+    expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: mockOwner,
+        repo: mockRepo,
+        title: `🔄 Cascade Merge Report: PR #${mockPullNumber}`,
+        body: expect.stringContaining(
+          'Total Cascade PRs**: 3 created, 0 skipped (maxMergeDepth reached (global cap: 2))'
+        )
+      })
+    )
+  })
+
+  it('Does not perform a final merge when ref_branch is omitted', async () => {
+    await cascadingBranchMerge(
+      ['release/'],
+      undefined,
+      'release/1.2',
+      'release/1.3',
+      mockOwner,
+      mockRepo,
+      mockOctokit,
+      mockPullNumber,
+      mockActor,
+      mockLogger
+    )
+
+    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith({
+      owner: mockOwner,
+      repo: mockRepo,
+      base: 'release/2.0',
+      head: 'release/1.3',
+      title: expect.anything(),
+      body: expect.anything()
+    })
+  })
+
   it('Adds a comment if there are no commits for a PR', async () => {
     const error = new RequestError('Validation Failed', 422, {
       request: {

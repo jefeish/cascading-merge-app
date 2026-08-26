@@ -18,10 +18,13 @@ type GetRepositoryBranchesResponse =
  * @param actor The actor of the pull request.
  * @param log Probot logger instance.
  * @param verbose If true, creates a GitHub Issue with a Mermaid diagram showing the cascade flow.
+ * @param maxMergeDepth Maximum number of cascade hops to process. If omitted, no limit is applied.
+ * @param originatingPrTitle Title of the originating PR used to stamp downstream merge commits.
+ * @param originatingPrSource Source branch label of originating PR (for example, owner/branch).
  */
 export async function cascadingBranchMerge(
   prefixes: string[],
-  refBranch: string,
+  refBranch: string | undefined,
   headBranch: string,
   baseBranch: string,
   owner: string,
@@ -30,9 +33,17 @@ export async function cascadingBranchMerge(
   pullNumber: number,
   actor: string,
   log: Logger,
-  verbose: boolean = false
+  verbose: boolean = false,
+  maxMergeDepth?: number,
+  originatingPrTitle?: string,
+  originatingPrSource?: string,
+  maxMergeDepthSource?: 'global' | 'repo'
 ) {
   let success = true
+  let remainingDepth = maxMergeDepth ?? Number.POSITIVE_INFINITY
+  let stoppedByMaxDepth = false
+  let performedFinalRefMergeAtDepthLimit = false
+  const hasRefBranch = typeof refBranch === 'string' && refBranch.trim() !== ''
 
   // Track created PRs for verbose reporting
   const createdPRs: Array<{
@@ -60,7 +71,10 @@ export async function cascadingBranchMerge(
 
     if (baseBranch.startsWith(prefix)) {
       mergeListBase = getBranchMergeOrder(prefix, baseBranch, branches, log)
-      mergeListBase.push(refBranch)
+
+      if (hasRefBranch && refBranch && mergeListBase[mergeListBase.length - 1] !== refBranch) {
+        mergeListBase.push(refBranch)
+      }
     }
   })
 
@@ -74,6 +88,29 @@ export async function cascadingBranchMerge(
     mergeList = mergeLists[a]
 
     for (let i = 0; i < mergeList.length - 1; i++) {
+      const sourceBranch = mergeList[i]
+      let targetBranch = mergeList[i + 1]
+      const isBaseMergeList = a === 1
+      const forceFinalRefMerge =
+        isBaseMergeList &&
+        hasRefBranch &&
+        refBranch !== undefined &&
+        remainingDepth <= 0 &&
+        sourceBranch !== refBranch &&
+        targetBranch !== refBranch
+
+      if (remainingDepth <= 0 && !forceFinalRefMerge) {
+        stoppedByMaxDepth = true
+        break
+      }
+
+      if (forceFinalRefMerge) {
+        targetBranch = refBranch
+      } else {
+        // Count attempted cascade hops so the configured limit bounds total API work.
+        remainingDepth--
+      }
+
       let res: Endpoints['POST /repos/{owner}/{repo}/pulls']['response']
 
       // Create a PR for the next merge.
@@ -81,9 +118,9 @@ export async function cascadingBranchMerge(
         res = await octokit.rest.pulls.create({
           owner,
           repo,
-          base: mergeList[i + 1],
-          head: mergeList[i],
-          title: `Automatic merge from ${mergeList[i]} -> ${mergeList[i + 1]}`,
+          base: targetBranch,
+          head: sourceBranch,
+          title: `Automatic merge from ${sourceBranch} -> ${targetBranch}`,
           body: 'This PR was created automatically by the Cascading Merge App.'
         })
       } catch (error: any) {
@@ -92,35 +129,41 @@ export async function cascadingBranchMerge(
         if (error.status === 422) {
           if (message.startsWith('No commits between')) {
             log.info(
-              `No commits between ${mergeList[i]} and ${mergeList[i + 1]}, skipping PR creation`
+              `No commits between ${sourceBranch} and ${targetBranch}, skipping PR creation`
             )
 
             await octokit.rest.issues.createComment({
               owner,
               repo,
               issue_number: pullNumber,
-              body: `Skipping creation of cascading PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__\n\nThere are no commits between these branches.\n\nContinuing auto-merge activity...`
+              body: `Skipping creation of cascading PR to merge __${sourceBranch}__ into __${targetBranch}__\n\nThere are no commits between these branches.\n\nContinuing auto-merge activity...`
             })
 
             // Track skipped PR for verbose reporting
             createdPRs.push({
               prNumber: 0,
-              sourceBranch: mergeList[i],
-              targetBranch: mergeList[i + 1],
+              sourceBranch,
+              targetBranch,
               skipped: true
             })
+
+            if (forceFinalRefMerge) {
+              performedFinalRefMergeAtDepthLimit = true
+              stoppedByMaxDepth = true
+              break
+            }
 
             continue
           } else if (message.startsWith('A pull request already exists')) {
             log.warn(
-              `PR already exists for ${mergeList[i]} -> ${mergeList[i + 1]}`
+              `PR already exists for ${sourceBranch} -> ${targetBranch}`
             )
 
             await octokit.rest.issues.createComment({
               owner,
               repo,
               issue_number: pullNumber,
-              body: `:heavy_exclamation_mark: Tried to create a cascading PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__ but there is already a pull request open.\n\nCan't continue auto-merge action.`
+              body: `:heavy_exclamation_mark: Tried to create a cascading PR to merge __${sourceBranch}__ into __${targetBranch}__ but there is already a pull request open.\n\nCan't continue auto-merge action.`
             })
 
             success = false
@@ -136,14 +179,14 @@ export async function cascadingBranchMerge(
           repo,
           assignees: [actor],
           title: ':heavy_exclamation_mark: Cascading Auto-Merge Failure',
-          body: `Unknown issue when creating a PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__\n\nPlease try to resolve the issue.\n\n**Cascading Auto-Merge has been stopped!**\n\nError: "${JSON.stringify(error.response?.data || error.message)}"`
+          body: `Unknown issue when creating a PR to merge __${sourceBranch}__ into __${targetBranch}__\n\nPlease try to resolve the issue.\n\n**Cascading Auto-Merge has been stopped!**\n\nError: "${JSON.stringify(error.response?.data || error.message)}"`
         })
 
         await octokit.rest.issues.createComment({
           owner,
           repo,
           issue_number: pullNumber,
-          body: `:heavy_exclamation_mark: Tried to create a cascading PR to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__ but encountered an issue.\n\nError: "${JSON.stringify(error.response?.data || error.message)}"\n\nCreated an issue #${issue.data.number}.\n\nCan't continue auto-merge action.`
+          body: `:heavy_exclamation_mark: Tried to create a cascading PR to merge __${sourceBranch}__ into __${targetBranch}__ but encountered an issue.\n\nError: "${JSON.stringify(error.response?.data || error.message)}"\n\nCreated an issue #${issue.data.number}.\n\nCan't continue auto-merge action.`
         })
 
         success = false
@@ -154,22 +197,35 @@ export async function cascadingBranchMerge(
         owner,
         repo,
         issue_number: pullNumber,
-        body: `Created cascading Auto-Merge PR #${res!.data.number} to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__`
+        body: `Created cascading Auto-Merge PR #${res!.data.number} to merge __${sourceBranch}__ into __${targetBranch}__`
       })
 
       // Track created PR for verbose reporting
       createdPRs.push({
         prNumber: res!.data.number,
-        sourceBranch: mergeList[i],
-        targetBranch: mergeList[i + 1]
+        sourceBranch,
+        targetBranch
       })
 
       // Merge the PR
       try {
+        const normalizedOriginTitle = originatingPrTitle?.trim()
+        const normalizedOriginSource = originatingPrSource?.trim()
+        const downstreamCommitTitle =
+          normalizedOriginTitle && normalizedOriginSource
+            ? `PR #${pullNumber} from ${normalizedOriginSource}: ${normalizedOriginTitle}`
+            : normalizedOriginTitle
+
         await octokit.rest.pulls.merge({
           owner,
           repo,
-          pull_number: res!.data.number
+          pull_number: res!.data.number,
+          ...(downstreamCommitTitle
+            ? {
+                commit_title: downstreamCommitTitle,
+                commit_message: `Cascade merge: ${sourceBranch} -> ${targetBranch}\n\nOriginating PR #${pullNumber}`
+              }
+            : {})
         })
       } catch (error: any) {
         log.error(error)
@@ -208,14 +264,35 @@ export async function cascadingBranchMerge(
             owner,
             repo,
             issue_number: pullNumber,
-            body: `:heavy_exclamation_mark: Tried merge PR #${res!.data.number} to merge __${mergeList[i]}__ into __${mergeList[i + 1]}__ but encountered an issue.\n\nError: "${JSON.stringify(error.response?.data || error.message)}".\n\nCreated an issue #${issue.data.number}.\n\nCan't continue auto-merge action.`
+            body: `:heavy_exclamation_mark: Tried merge PR #${res!.data.number} to merge __${sourceBranch}__ into __${targetBranch}__ but encountered an issue.\n\nError: "${JSON.stringify(error.response?.data || error.message)}".\n\nCreated an issue #${issue.data.number}.\n\nCan't continue auto-merge action.`
           })
 
           success = false
           break
         }
       }
+
+      if (forceFinalRefMerge) {
+        performedFinalRefMergeAtDepthLimit = true
+        stoppedByMaxDepth = true
+        break
+      }
     }
+
+    if (stoppedByMaxDepth || !success) {
+      break
+    }
+  }
+
+  if (stoppedByMaxDepth && maxMergeDepth !== undefined) {
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: pullNumber,
+      body: performedFinalRefMergeAtDepthLimit
+        ? `Reached configured max merge depth (${maxMergeDepth}). Performed a final merge to __${refBranch}__ and stopped.`
+        : `Reached configured max merge depth (${maxMergeDepth}). Stopping cascade early.`
+    })
   }
 
   await octokit.rest.issues.createComment({
@@ -229,6 +306,15 @@ export async function cascadingBranchMerge(
 
   // If verbose mode is enabled, create a GitHub Issue with the cascade report
   if (verbose && createdPRs.length > 0) {
+    const depthLimitNote =
+      stoppedByMaxDepth && maxMergeDepth !== undefined
+        ? maxMergeDepthSource === 'global'
+          ? `maxMergeDepth reached (global cap: ${maxMergeDepth})`
+          : maxMergeDepthSource === 'repo'
+            ? `maxMergeDepth reached (repo-level setting: ${maxMergeDepth})`
+            : `maxMergeDepth reached (${maxMergeDepth})`
+        : undefined
+
     await createCascadeReport(
       owner,
       repo,
@@ -237,7 +323,8 @@ export async function cascadingBranchMerge(
       headBranch,
       baseBranch,
       createdPRs,
-      log
+      log,
+      depthLimitNote
     )
   }
 }
@@ -267,7 +354,8 @@ async function createCascadeReport(
     targetBranch: string
     skipped?: boolean
   }>,
-  log: Logger
+  log: Logger,
+  depthLimitNote?: string
 ) {
   log.info('Creating cascade report issue...')
 
@@ -314,7 +402,7 @@ async function createCascadeReport(
 ## Trigger Information
 - **Original PR**: #${pullNumber}
 - **Merged Branch**: \`${headBranch}\` → \`${baseBranch}\`
-- **Total Cascade PRs**: ${createdPRs.filter(pr => !pr.skipped).length} created, ${createdPRs.filter(pr => pr.skipped).length} skipped
+- **Total Cascade PRs**: ${createdPRs.filter(pr => !pr.skipped).length} created, ${createdPRs.filter(pr => pr.skipped).length} skipped${depthLimitNote ? ` (${depthLimitNote})` : ''}
 
 ## Cascade PRs
 

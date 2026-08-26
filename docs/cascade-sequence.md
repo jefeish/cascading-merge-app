@@ -28,7 +28,7 @@ sequenceDiagram
     else Human PR
         Note over App: Load configuration
         App->>Repo: GET .github/cascading-merge.yml
-        Repo-->>App: prefixes, ref_branch, verbose
+        Repo-->>App: prefixes, ref_branch, verbose, maxMergeDepth?
 
         Note over App: Validate base branch
         App->>App: Does release/1.0 match configured prefixes?
@@ -88,9 +88,13 @@ prefixes:
   - 'release/'
   - 'hotfix/'
 
+# Optional: final reference merge target
+# If omitted, no final reference merge is performed
 ref_branch: 'main'
 
 verbose: true # Creates report issue with Mermaid diagram
+maxMergeDepth: 5 # Optional; omit for unlimited depth
+                 # With ref_branch set, one final merge to ref_branch is still attempted after depth is reached
 ```
 
 ## Verbose Report Output

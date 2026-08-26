@@ -24,7 +24,7 @@ npm install
 **Option A: Automated** ⚡
 
 ```bash
-npm start  # Without .env file, triggers Probot's setup flow
+npm start  # Builds and runs the app; without .env, triggers Probot setup flow
 # Open http://localhost:3000, click "Register GitHub App"
 # Follow GitHub flow - credentials auto-saved to .env via app.yml
 ```
@@ -34,7 +34,7 @@ Go to: GitHub → Settings → Developer settings → GitHub Apps → New
 
 - **Permissions**: Contents (R/W), Issues (R/W), Pull requests (R/W), Metadata (Read)
 - **Events**: Pull request
-- **Webhook**: https://smee.io/new (get URL first)
+- **Webhook**: https://smee.io/new (this is for local development/testing - get URL first)
 - **Secret**: `openssl rand -hex 20`
 - Generate & download private key
 
@@ -51,25 +51,19 @@ Edit `.env`:
 ```bash
 APP_ID=123456                              # From app settings
 WEBHOOK_SECRET=abc...                      # Your secret
-PRIVATE_KEY_PATH=./private-key.pem        # Downloaded key
-WEBHOOK_PROXY_URL=https://smee.io/abc...  # Smee URL
+PRIVATE_KEY_PATH=./private-key.pem         # Downloaded key
+WEBHOOK_PROXY_URL=https://smee.io/abc...   # Smee URL - use for development, local setup only
+
+# Optional global cap for cascade depth
+MAX_MERGE_DEPTH=5
 ```
 
 ### 4. Start (1 min)
 
-Step 1
-
-```bash
-# Terminal 1: Webhook proxy
-npx smee -u https://smee.io/YOUR_URL -t http://localhost:3000
-```
-
-Step 2
-
-```bash
-# Terminal 2: App
-npm run dev
-```
+- **Terminal: App**
+  ```bash
+  npm run dev  # Watches src/, rebuilds, and restarts automatically
+  ```
 
 ✅ You should see: `INFO Listening on http://localhost:3000`
 
@@ -84,9 +78,17 @@ prefixes:
   - 'release/'
 ref_branch: 'main'
 verbose: true # Creates visual reports
+maxMergeDepth: 5 # Optional; omit for unlimited depth
+# Note: with ref_branch set, one final merge to ref_branch is still attempted
+# after maxMergeDepth is reached
 ```
 
-**Commit to your default branch!**
+When both values are set, the global cap is the hard limit:
+
+- `.env` `MAX_MERGE_DEPTH` sets the maximum allowed depth globally.
+- Repository `maxMergeDepth` can only lower that value, not exceed it.
+
+### :warning: Commit to your default branch! The cascading-merge file is always read from the default branch!
 
 ### :warning: If you have any `Branch-Rulesets` that prevent Auto-Merging, you must add this App as a `Bypass-Actor` to the Ruleset!
 
@@ -103,6 +105,7 @@ verbose: true # Creates visual reports
 INFO  Starting cascade merge from release/1.0
 INFO  Created PR #123: release/1.0 → release/2.0
 INFO  Created PR #124: release/2.0 → main
+INFO  Configuration loaded: prefixes=[release/], ref_branch=main, verbose=true, maxMergeDepth=5
 ```
 
 **With `verbose: true`, check GitHub Issues** for a visual cascade report with Mermaid diagrams.
@@ -111,7 +114,7 @@ INFO  Created PR #124: release/2.0 → main
 
 | Issue                     | Fix                                                       |
 | ------------------------- | --------------------------------------------------------- |
-| "Webhook not received"    | Check smee proxy is running                               |
+| "Webhook not received"    | Verify `WEBHOOK_PROXY_URL` is set correctly in `.env`     |
 | "Configuration not found" | Ensure `.github/cascading-merge.yml` is on default branch |
 | "Authentication failed"   | Verify `APP_ID` and `PRIVATE_KEY_PATH`                    |
 | Port 3000 in use          | `lsof -ti:3000 \| xargs kill -9`                          |
@@ -129,6 +132,7 @@ INFO  Created PR #124: release/2.0 → main
 prefixes:
   - 'release/'
 ref_branch: 'develop'
+maxMergeDepth: 5
 ```
 
 ### Different Final Branch
@@ -137,6 +141,16 @@ ref_branch: 'develop'
 prefixes:
   - 'stable/'
 ref_branch: 'production'
+maxMergeDepth: 3
+```
+
+### No Final Reference Merge
+
+```yaml
+prefixes:
+  - 'release/'
+# Omit ref_branch to disable the final reference merge
+maxMergeDepth: 5
 ```
 
 ## 🎯 Testing Different Scenarios
@@ -160,6 +174,7 @@ prefixes:
   - 'release/'
   - 'hotfix/'
 ref_branch: 'main'
+maxMergeDepth: 5
 ```
 
 Create branches: `release/1.0`, `hotfix/1.0.1`, `release/2.0`

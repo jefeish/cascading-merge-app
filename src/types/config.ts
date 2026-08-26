@@ -12,11 +12,18 @@ export interface CascadingMergeConfig {
    * The final branch to merge into after all versioned branches
    * Example: 'develop' or 'main'
    */
-  ref_branch: string
+  ref_branch?: string
 
   /**
    * If true, creates a GitHub Issue with a Mermaid diagram showing the cascade flow
    * Example: true or false
    */
   verbose?: boolean
+
+  /**
+   * Maximum number of cascade merge hops to process for a single originating PR.
+   * If omitted, cascade depth is unlimited.
+   * Example: 3
+   */
+  maxMergeDepth?: number
 }

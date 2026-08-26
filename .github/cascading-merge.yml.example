@@ -11,9 +11,8 @@
 # 1. When ANY pull request is closed in your repository (merged or not)
 # 2. The app checks if the PR was merged by a human (bot PRs are ignored)
 # 3. The app reads THIS file from .github/cascading-merge.yml
-# 4. If this file doesn't exist, default settings are used:
-#    - prefixes: ['release/']
-#    - ref_branch: 'develop'
+# 4. If this file doesn't exist, the app skips cascade merge processing
+#    for this repository.
 #
 # LOCATION:
 # Place this file at: .github/cascading-merge.yml
@@ -28,8 +27,9 @@ prefixes:
   - 'release/'
   - 'hotfix/'
 
-# The final branch to merge into
+# The final branch to merge into (optional)
 # This is the last branch in the cascade sequence
+# If omitted, no final merge to a reference branch is performed
 ref_branch: 'main'
 
 # Enable verbose reporting (optional)
@@ -39,6 +39,13 @@ ref_branch: 'main'
 # - A Mermaid diagram visualizing the cascade flow
 # Default: false
 verbose: true
+
+# Maximum number of cascade merge hops for a single originating PR (optional)
+# If omitted, cascade depth is unlimited
+# When used with ref_branch, the app still performs one final merge to
+# ref_branch after reaching maxMergeDepth, then stops
+# If global MAX_MERGE_DEPTH is configured, this value cannot exceed it
+maxMergeDepth: 5
 
 # --- How It Works ---
 #

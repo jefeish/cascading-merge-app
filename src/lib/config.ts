@@ -53,10 +53,14 @@ export async function loadConfig(
 function validateConfig(
   config: Partial<CascadingMergeConfig>
 ): CascadingMergeConfig {
+  const rawRefBranch =
+    typeof config.ref_branch === 'string' ? config.ref_branch.trim() : undefined
+
   const result: CascadingMergeConfig = {
     prefixes: config.prefixes || [],
-    ref_branch: config.ref_branch || '',
-    verbose: config.verbose ?? false
+    ref_branch: rawRefBranch,
+    verbose: config.verbose ?? false,
+    maxMergeDepth: config.maxMergeDepth
   }
 
   // Validate prefixes
@@ -74,14 +78,24 @@ function validateConfig(
     }
   }
 
-  // Validate ref_branch
-  if (
-    typeof result.ref_branch !== 'string' ||
-    result.ref_branch.trim() === ''
-  ) {
+  // Validate ref_branch (optional)
+  if (config.ref_branch !== undefined && !result.ref_branch) {
     throw new Error(
-      'Configuration error: "ref_branch" must be a non-empty string'
+      'Configuration error: "ref_branch" must be a non-empty string when provided'
     )
+  }
+
+  // Validate maxMergeDepth
+  if (result.maxMergeDepth !== undefined) {
+    if (
+      typeof result.maxMergeDepth !== 'number' ||
+      !Number.isInteger(result.maxMergeDepth) ||
+      result.maxMergeDepth < 1
+    ) {
+      throw new Error(
+        'Configuration error: "maxMergeDepth" must be an integer greater than or equal to 1 when provided'
+      )
+    }
   }
 
   return result
@@ -102,5 +116,9 @@ prefixes:
 
 # The final branch to merge into after all versioned branches
 ref_branch: develop
+
+# Maximum number of cascade merge hops for a single originating PR (optional)
+# If omitted, cascade depth is unlimited
+maxMergeDepth: 5
 `
 }

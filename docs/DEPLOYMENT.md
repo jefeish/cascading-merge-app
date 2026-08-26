@@ -97,7 +97,12 @@ WEBHOOK_PROXY_URL=https://smee.io/your-channel
 # Rate Limiting
 GITHUB_API_TIMEOUT=30000    # API timeout in ms
 MAX_RETRIES=3               # Max API retry attempts
+
+# Global cascade depth cap (hard upper bound across repositories)
+MAX_MERGE_DEPTH=5
 ```
+
+`MAX_MERGE_DEPTH` is a global ceiling. Repository-level `maxMergeDepth` may set a lower value, but cannot exceed this global cap.
 
 > **💡 Configuration Required**: The app only processes repositories that have a `.github/cascading-merge.yml` file. Repositories without this file are automatically skipped, making it safe to install across an entire organization.
 

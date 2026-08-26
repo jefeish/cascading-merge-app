@@ -1,13 +1,22 @@
 import { Probot } from 'probot'
 import { cascadingBranchMerge } from './lib/cascading-branch-merge.js'
 import { loadConfig } from './lib/config.js'
+import {
+    parseGlobalMaxMergeDepth,
+    resolveEffectiveMaxMergeDepth
+} from './lib/depth-control.js'
 
 /**
  * Main Probot app function
  * Handles pull_request.closed events and triggers cascade merging
  */
 export default (app: Probot) => {
+  const globalMaxMergeDepth = parseGlobalMaxMergeDepth()
+
   app.log.info('Cascading Merge App loaded!')
+  app.log.info(
+    `Global max merge depth cap: ${globalMaxMergeDepth ?? 'unlimited'}`
+  )
 
   // Handle pull_request closed events
   app.on('pull_request.closed', async context => {
@@ -54,8 +63,37 @@ export default (app: Probot) => {
       }
 
       context.log.info(
-        `Configuration loaded: prefixes=[${config.prefixes.join(', ')}], ref_branch=${config.ref_branch}, verbose=${config.verbose ?? false}`
+        `Configuration loaded: prefixes=[${config.prefixes.join(', ')}], ref_branch=${config.ref_branch ?? 'none'}, verbose=${config.verbose ?? false}, maxMergeDepth=${config.maxMergeDepth ?? 'unlimited'}`
       )
+
+      const effectiveMaxMergeDepth = resolveEffectiveMaxMergeDepth(
+        config.maxMergeDepth,
+        globalMaxMergeDepth
+      )
+
+      let maxMergeDepthSource: 'global' | 'repo' | undefined
+
+      if (effectiveMaxMergeDepth !== undefined) {
+        if (
+          globalMaxMergeDepth !== undefined &&
+          (config.maxMergeDepth === undefined ||
+            config.maxMergeDepth > globalMaxMergeDepth)
+        ) {
+          maxMergeDepthSource = 'global'
+        } else {
+          maxMergeDepthSource = 'repo'
+        }
+      }
+
+      if (
+        globalMaxMergeDepth !== undefined &&
+        (config.maxMergeDepth === undefined ||
+          config.maxMergeDepth > globalMaxMergeDepth)
+      ) {
+        context.log.info(
+          `Applying global max merge depth cap (${globalMaxMergeDepth}). Effective maxMergeDepth=${effectiveMaxMergeDepth}.`
+        )
+      }
 
       // Check if the base branch matches any configured prefix
       const matchesPrefix = config.prefixes.some(prefix =>
@@ -79,6 +117,8 @@ export default (app: Probot) => {
       )
 
       // Trigger the cascading merge
+      const originatingPrSource = pull_request.head.label.replace(':', '/')
+
       await cascadingBranchMerge(
         config.prefixes,
         config.ref_branch,
@@ -90,7 +130,11 @@ export default (app: Probot) => {
         pull_request.number,
         actor,
         context.log,
-        config.verbose ?? false
+        config.verbose ?? false,
+        effectiveMaxMergeDepth,
+        pull_request.title,
+        originatingPrSource,
+        maxMergeDepthSource
       )
 
       context.log.info(`Cascade merge completed for PR #${pull_request.number}`)

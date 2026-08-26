@@ -16,6 +16,8 @@ This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.a
 
 - **Automatic Cascade Merging**: When a PR is merged to a release branch, automatically creates PRs to merge into all subsequent branches
 - **Semantic Version Ordering**: Uses Bitbucket's proven algorithm to correctly order branches with complex versioning (e.g., `1.1-rc1`, `1.2-a`, `2.0`)
+- **Configurable Cascade Depth**: Supports per-repository `maxMergeDepth` controls with unlimited depth when omitted
+- **Global Depth Cap**: Supports optional `MAX_MERGE_DEPTH` as a hard upper bound across repositories
 - **Visual Reporting**: Optional verbose mode creates GitHub Issues with Mermaid diagrams showing cascade flow
 - **Repository-Scoped Configuration**: Each repository controls its own cascade rules via `.github/cascading-merge.yml`
 - **Bot PR Detection**: Automatically skips cascade logic for bot-created PRs to prevent duplicate cascades
@@ -24,13 +26,13 @@ This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.a
 
 ## 📋 Prerequisites
 
-- Node.js >= 20
-- A GitHub organization or repository where you have admin access
-- GitHub App credentials (see Installation section)
+- Node.js 20+
+- npm 8+
+- Admin access to a GitHub organization or repository
 
 ## 🔧 Installation
 
-### Quick Install (Automated)
+### Quick Install (Recommended)
 
 ```bash
 # Clone and install
@@ -38,44 +40,45 @@ git clone https://github.com/YOUR_ORG/cascading-merge-app.git
 cd cascading-merge-app
 npm install
 
-# Start without .env to trigger automated setup
+# Build + start (without .env triggers automated setup)
 npm start
 ```
 
 Probot will detect the missing `.env` file and start the setup server. Open `http://localhost:3000` in your browser, click "Register GitHub App", and follow the GitHub App creation flow. Probot will automatically save your credentials to `.env` using the `app.yml` manifest.
 
+### Verify Setup
+
+You are ready when all of the following are true:
+
+- The app starts without errors
+- A `.env` file exists in the project root
+- Terminal output includes `Cascading Merge App loaded!`
+- Your GitHub App is installed on at least one repository
+
 ### Manual Install
 
 For step-by-step manual setup instructions, see the **[Installation Guide](docs/INSTALLATION.md)**.
-
-### What You Need
-
-- Node.js 20+ and npm 8+
-- Admin access to a GitHub organization or repository
-- 5-10 minutes for setup
 
 ## 🎯 Usage
 
 ### Running Locally (Development)
 
-1. Start the webhook proxy (if using smee.io):
+1. Ensure `WEBHOOK_PROXY_URL` is set in `.env` for local development.
 
-   ```bash
-   npx smee -u https://smee.io/your-unique-url -t http://localhost:3000
-   ```
-
-2. In another terminal, start the app:
+2. Start the app:
    ```bash
    npm run dev
    ```
 
-The app will now listen for webhook events and process cascade merges.
+The app will now listen for webhook events and process cascade merges. Probot uses `WEBHOOK_PROXY_URL` internally, so no separate `npx smee` process is required. `npm run dev` watches `src/`, rebuilds, and restarts automatically.
 
 ### Running in Production
 
 ```bash
 npm start
 ```
+
+`npm start` builds the TypeScript source before launching the app.
 
 For production deployment, consider:
 
@@ -94,23 +97,53 @@ prefixes:
   - 'release/'
   - 'hotfix/'
 
-# The final branch to merge into
+# The final branch to merge into (optional)
+# If omitted, no final merge to a reference branch is performed
 ref_branch: 'main'
 
 # Enable verbose reporting (optional, default: false)
 # Creates a GitHub Issue with visual cascade report
 verbose: true
+
+# Maximum number of cascade merge hops for a single originating PR (optional)
+# If omitted, cascade depth is unlimited
+# When used with ref_branch, the app still performs one final merge to ref_branch
+# after reaching maxMergeDepth, then stops
+maxMergeDepth: 5
 ```
 
 See the complete configuration example with documentation: [`.github/cascading-merge.yml.example`](.github/cascading-merge.yml.example)
 
 ### Configuration Options
 
-| Option       | Required | Default        | Description                                                         |
-| ------------ | -------- | -------------- | ------------------------------------------------------------------- |
-| `prefixes`   | Yes      | `['release/']` | Array of branch prefixes to include in cascades                     |
-| `ref_branch` | Yes      | `'develop'`    | Final branch in the cascade sequence                                |
-| `verbose`    | No       | `false`        | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
+| Option          | Required | Default           | Description                                                         |
+| --------------- | -------- | ----------------- | ------------------------------------------------------------------- |
+| `prefixes`      | Yes      | None (required)   | Array of branch prefixes to include in cascades                     |
+| `ref_branch`    | No       | No final merge    | Final branch in the cascade sequence                                |
+| `verbose`       | No       | `false`           | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
+| `maxMergeDepth` | No       | Unlimited (omit)  | Maximum number of cascade merge hops per originating PR; if `ref_branch` is set, one final merge to `ref_branch` is still attempted |
+
+### Global Depth Cap
+
+You can set a global maximum cascade depth using `.env`:
+
+```bash
+MAX_MERGE_DEPTH=5
+```
+
+This value is a hard upper bound across all repositories:
+
+- If repository `maxMergeDepth` is lower, the lower repository value is used.
+- If repository `maxMergeDepth` is higher, it is capped to `MAX_MERGE_DEPTH`.
+- If repository `maxMergeDepth` is omitted, `MAX_MERGE_DEPTH` is used.
+
+Effective depth rule:
+
+```text
+effectiveMaxMergeDepth = min(repo maxMergeDepth, app MAX_MERGE_DEPTH)
+```
+
+If `MAX_MERGE_DEPTH` is not set, only repository configuration is used.
 
 ### Missing Configuration
 
