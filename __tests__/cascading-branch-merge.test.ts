@@ -36,6 +36,25 @@ const mockOctokit: any = {
 // Import the module to test
 import { cascadingBranchMerge } from '../src/lib/cascading-branch-merge.js'
 
+const noCommitsError = () =>
+  new RequestError('Validation Failed', 422, {
+    request: {
+      method: 'POST',
+      url: 'https://api.github.com/foo',
+      body: { bar: 'baz' },
+      headers: { authorization: 'token secret13' }
+    },
+    response: {
+      status: 422,
+      url: 'https://api.github.com/foo',
+      headers: { 'x-github-request-id': '1:2:3:4' },
+      data: {
+        message: 'Validation Failed',
+        errors: [{ message: 'No commits between develop and develop' }]
+      }
+    }
+  })
+
 describe('Cascading Branch Merge', () => {
   const mockOwner = 'test-owner'
   const mockRepo = 'test-repo'
@@ -74,650 +93,1032 @@ describe('Cascading Branch Merge', () => {
     } as any)
   })
 
-  it('Performs a simple cascade', async () => {
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger
-    )
+  describe('Cascade merge flow', () => {
+    it('UC-01: Performs a simple cascade', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
 
-    expect(mockOctokit.paginate).toHaveBeenCalledWith(
-      mockOctokit.rest.repos.listBranches,
-      {
-        owner: mockOwner,
-        repo: mockRepo
-      }
-    )
+      expect(mockOctokit.paginate).toHaveBeenCalledWith(
+        mockOctokit.rest.repos.listBranches,
+        {
+          owner: mockOwner,
+          repo: mockRepo
+        }
+      )
 
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(10)
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1',
-      head: 'release/1.0',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1-1',
-      head: 'release/1.1',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(3, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1-2',
-      head: 'release/1.1-1',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(4, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1-3',
-      head: 'release/1.1-2',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(5, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1-rc1',
-      head: 'release/1.1-3',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(6, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.2-a',
-      head: 'release/1.1-rc1',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(7, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.2-b',
-      head: 'release/1.2-a',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(8, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.3',
-      head: 'release/1.2-b',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(9, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/2.0',
-      head: 'release/1.3',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(10, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'develop',
-      head: 'release/2.0',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledTimes(11)
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':white_check_mark: Auto-merge was successful.'
-    })
-
-    expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
-  })
-
-  it('Fixing a conflict continues the cascade', async () => {
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'release/1.2',
-      'release/1.3',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger
-    )
-
-    expect(mockOctokit.paginate).toHaveBeenCalledWith(
-      mockOctokit.rest.repos.listBranches,
-      {
-        owner: mockOwner,
-        repo: mockRepo
-      }
-    )
-
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/2.0',
-      head: 'release/1.3',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'develop',
-      head: 'release/2.0',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledTimes(3)
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':white_check_mark: Auto-merge was successful.'
-    })
-
-    expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
-  })
-
-  it('Carries originating PR title into downstream merge commits', async () => {
-    const originatingTitle = 'ABC-1234 Improve release notes'
-    const originatingSource = 'jefeish/release/2026-01-20'
-
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/2.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger,
-      false,
-      undefined,
-      originatingTitle,
-      originatingSource
-    )
-
-    expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledWith(
-      expect.objectContaining({
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(10)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
         owner: mockOwner,
         repo: mockRepo,
-        pull_number: 1,
-        commit_title: `PR #1 from ${originatingSource}: ${originatingTitle}`,
-        commit_message: expect.stringContaining('Originating PR #1')
+        base: 'release/1.1',
+        head: 'release/1.0',
+        title: expect.anything(),
+        body: expect.anything()
       })
-    )
-  })
-
-  it('Still performs final ref_branch merge when maxMergeDepth is reached', async () => {
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger,
-      false,
-      2
-    )
-
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(3)
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1',
-      head: 'release/1.0',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/1.1-1',
-      head: 'release/1.1',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-    expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(3, {
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'develop',
-      head: 'release/1.1-1',
-      title: expect.anything(),
-      body: expect.anything()
-    })
-
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: 'Reached configured max merge depth (2). Performed a final merge to __develop__ and stopped.'
-    })
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':white_check_mark: Auto-merge was successful.'
-    })
-  })
-
-  it('Includes maxMergeDepth source note in verbose report when depth is reached', async () => {
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger,
-      true,
-      2,
-      undefined,
-      undefined,
-      'global'
-    )
-
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
         owner: mockOwner,
         repo: mockRepo,
-        title: `🔄 Cascade Merge Report: PR #${mockPullNumber}`,
-        body: expect.stringContaining(
-          'Total Cascade PRs**: 3 created, 0 skipped (maxMergeDepth reached (global cap: 2))'
-        )
+        base: 'release/1.1-1',
+        head: 'release/1.1',
+        title: expect.anything(),
+        body: expect.anything()
       })
-    )
-  })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(3, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.1-2',
+        head: 'release/1.1-1',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(4, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.1-3',
+        head: 'release/1.1-2',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(5, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.1-rc1',
+        head: 'release/1.1-3',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(6, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.2-a',
+        head: 'release/1.1-rc1',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(7, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.2-b',
+        head: 'release/1.2-a',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(8, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.3',
+        head: 'release/1.2-b',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(9, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/2.0',
+        head: 'release/1.3',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(10, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
 
-  it('Does not perform a final merge when ref_branch is omitted', async () => {
-    await cascadingBranchMerge(
-      ['release/'],
-      undefined,
-      'release/1.2',
-      'release/1.3',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger
-    )
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledTimes(11)
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':white_check_mark: Auto-merge was successful.'
+      })
 
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      base: 'release/2.0',
-      head: 'release/1.3',
-      title: expect.anything(),
-      body: expect.anything()
+      expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
     })
-  })
 
-  it('Adds a comment if there are no commits for a PR', async () => {
-    const error = new RequestError('Validation Failed', 422, {
-      request: {
-        method: 'POST',
-        url: 'https://api.github.com/foo',
-        body: {
-          bar: 'baz'
-        },
-        headers: {
-          authorization: 'token secret13'
+    it('UC-02: Fixing a conflict continues the cascade', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'release/1.2',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.paginate).toHaveBeenCalledWith(
+        mockOctokit.rest.repos.listBranches,
+        {
+          owner: mockOwner,
+          repo: mockRepo
         }
-      },
-      response: {
-        status: 422,
-        url: 'https://api.github.com/foo',
-        headers: {
-          'x-github-request-id': '1:2:3:4'
-        },
-        data: {
-          message: 'Validation Failed',
-          errors: [
-            {
-              message: 'No commits between develop and develop'
-            }
-          ]
-        }
-      }
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/2.0',
+        head: 'release/1.3',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledTimes(3)
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':white_check_mark: Auto-merge was successful.'
+      })
+
+      expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
     })
 
-    mockOctokit.rest.pulls.create.mockRejectedValue(error)
+    it('UC-03: Carries originating PR title into downstream merge commits', async () => {
+      const originatingTitle = 'ABC-1234 Improve release notes'
+      const originatingSource = 'jefeish/release/2026-01-20'
 
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/2.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger
-    )
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        undefined,
+        originatingTitle,
+        originatingSource
+      )
 
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: expect.stringMatching(/.*There are no commits between.*/)
-    })
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':white_check_mark: Auto-merge was successful.'
-    })
-    expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
-  })
-
-  it('Breaks if a PR already exists', async () => {
-    const error = new RequestError('Validation Failed', 422, {
-      request: {
-        method: 'POST',
-        url: 'https://api.github.com/foo',
-        body: {
-          bar: 'baz'
-        },
-        headers: {
-          authorization: 'token secret13'
-        }
-      },
-      response: {
-        status: 422,
-        url: 'https://api.github.com/foo',
-        headers: {
-          'x-github-request-id': '1:2:3:4'
-        },
-        data: {
-          message: 'Validation Failed',
-          errors: [
-            {
-              message: 'A pull request already exists'
-            }
-          ]
-        }
-      }
-    })
-
-    mockOctokit.rest.pulls.create.mockRejectedValue(error)
-
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      mockActor,
-      mockLogger
-    )
-
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
-
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: expect.stringMatching(/.*already a pull request open/)
-    })
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
-    })
-
-    expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
-  })
-
-  it('Opens an issue if an unhandled error occurs', async () => {
-    const error = new RequestError('Validation Failed', 500, {
-      request: {
-        method: 'POST',
-        url: 'https://api.github.com/foo',
-        body: {
-          bar: 'baz'
-        },
-        headers: {
-          authorization: 'token secret13'
-        }
-      },
-      response: {
-        status: 500,
-        url: 'https://api.github.com/foo',
-        headers: {
-          'x-github-request-id': '1:2:3:4'
-        },
-        data: {
-          message: 'Some Unhandled Error',
-          errors: [
-            {
-              message: 'Unhandled Exception'
-            }
-          ]
-        }
-      }
-    })
-
-    mockOctokit.rest.pulls.create.mockRejectedValue(error)
-
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      'handle',
-      mockLogger
-    )
-
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledTimes(1)
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      assignees: ['handle'],
-      title: expect.any(String),
-      body: expect.stringMatching(/^Unknown issue when creating.*/)
-    })
-
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: expect.stringMatching(/.*encountered an issue.*/)
-    })
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
-    })
-
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
-  })
-
-  it('Adds a comment and breaks if a merge conflict exists', async () => {
-    const error = new RequestError('Validation Failed', 405, {
-      request: {
-        method: 'POST',
-        url: 'https://api.github.com/merge',
-        body: {
-          bar: 'baz'
-        },
-        headers: {
-          authorization: 'token secret13'
-        }
-      },
-      response: {
-        status: 405,
-        url: 'https://api.github.com/merge',
-        headers: {
-          'x-github-request-id': '1:2:3:4'
-        },
-        data: {
-          message: 'Merge conflict',
-          errors: [
-            {
-              message: 'Merge conflict'
-            }
-          ]
-        }
-      }
-    })
-
-    mockOctokit.rest.pulls.merge.mockRejectedValue(error)
-
-    mockOctokit.rest.pulls.create.mockResolvedValue({
-      data: { number: 13 }
-    } as Endpoints['POST /repos/{owner}/{repo}/pulls']['response'])
-
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.2',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      'handle',
-      mockLogger
-    )
-
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledTimes(1)
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      assignees: ['handle'],
-      title: expect.any(String),
-      body: expect.stringMatching(/.*PR #13.*/)
-    })
-
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: expect.stringMatching(
-        /.*Could not auto merge PR #13 due to merge conflicts.*/
+      expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner: mockOwner,
+          repo: mockRepo,
+          pull_number: 1,
+          commit_title: `PR #1 from ${originatingSource}: ${originatingTitle}`,
+          commit_message: expect.stringContaining('Originating PR #1')
+        })
       )
     })
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
-    })
-
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
-
-    expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledTimes(1)
   })
 
-  it('Breaks if an unhandled error occurs merging a PR', async () => {
-    const error = new RequestError('Validation Failed', 500, {
-      request: {
-        method: 'POST',
-        url: 'https://api.github.com/foo',
-        body: {
-          bar: 'baz'
+  describe('Depth limits and final ref_branch merge', () => {
+    it('UC-04: Still performs final ref_branch merge when maxMergeDepth is reached', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        2
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(3)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.1',
+        head: 'release/1.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.1-1',
+        head: 'release/1.1',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(3, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/1.1-1',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: 'Reached configured max merge depth (2). Performed a final merge to __develop__ and stopped.'
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':white_check_mark: Auto-merge was successful.'
+      })
+    })
+
+    it('UC-05: Still performs final ref_branch merge when the depth limit lands on the last release branch', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        1
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: 'Reached configured max merge depth (1). Performed a final merge to __develop__ and stopped.'
+      })
+    })
+
+    it('UC-06: Includes maxMergeDepth source note in verbose report when depth is reached', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true,
+        2,
+        undefined,
+        undefined,
+        'global'
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner: mockOwner,
+          repo: mockRepo,
+          title: `🔄 Cascade Merge Report: PR #${mockPullNumber}`,
+          body: expect.stringContaining(
+            'Total Cascade PRs**: 3 created, 0 skipped (maxMergeDepth reached (global cap: 2))'
+          )
+        })
+      )
+    })
+
+    it('UC-07: Does not perform a final merge when ref_branch is omitted', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        undefined,
+        'release/1.2',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/2.0',
+        head: 'release/1.3',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+    })
+  })
+
+  describe('Failure handling', () => {
+    it('UC-08: Adds a comment if there are no commits for a PR', async () => {
+      const error = new RequestError('Validation Failed', 422, {
+        request: {
+          method: 'POST',
+          url: 'https://api.github.com/foo',
+          body: {
+            bar: 'baz'
+          },
+          headers: {
+            authorization: 'token secret13'
+          }
         },
-        headers: {
-          authorization: 'token secret13'
+        response: {
+          status: 422,
+          url: 'https://api.github.com/foo',
+          headers: {
+            'x-github-request-id': '1:2:3:4'
+          },
+          data: {
+            message: 'Validation Failed',
+            errors: [
+              {
+                message: 'No commits between develop and develop'
+              }
+            ]
+          }
         }
-      },
-      response: {
-        status: 500,
-        url: 'https://api.github.com/foo',
-        headers: {
-          'x-github-request-id': '1:2:3:4'
+      })
+
+      mockOctokit.rest.pulls.create.mockRejectedValue(error)
+
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: expect.stringMatching(/.*There are no commits between.*/)
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':white_check_mark: Auto-merge was successful.'
+      })
+      expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
+    })
+
+    it('UC-09: Breaks if a PR already exists', async () => {
+      const error = new RequestError('Validation Failed', 422, {
+        request: {
+          method: 'POST',
+          url: 'https://api.github.com/foo',
+          body: {
+            bar: 'baz'
+          },
+          headers: {
+            authorization: 'token secret13'
+          }
         },
-        data: {
-          message: 'Some Unhandled Error',
-          errors: [
-            {
-              message: 'Unhandled Exception'
-            }
-          ]
+        response: {
+          status: 422,
+          url: 'https://api.github.com/foo',
+          headers: {
+            'x-github-request-id': '1:2:3:4'
+          },
+          data: {
+            message: 'Validation Failed',
+            errors: [
+              {
+                message: 'A pull request already exists'
+              }
+            ]
+          }
         }
-      }
+      })
+
+      mockOctokit.rest.pulls.create.mockRejectedValue(error)
+
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: expect.stringMatching(/.*already a pull request open/)
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
+      })
+
+      expect(mockOctokit.rest.issues.create).not.toHaveBeenCalled()
     })
 
-    mockOctokit.rest.pulls.merge.mockRejectedValue(error)
+    it('UC-10: Opens an issue if an unhandled error occurs', async () => {
+      const error = new RequestError('Validation Failed', 500, {
+        request: {
+          method: 'POST',
+          url: 'https://api.github.com/foo',
+          body: {
+            bar: 'baz'
+          },
+          headers: {
+            authorization: 'token secret13'
+          }
+        },
+        response: {
+          status: 500,
+          url: 'https://api.github.com/foo',
+          headers: {
+            'x-github-request-id': '1:2:3:4'
+          },
+          data: {
+            message: 'Some Unhandled Error',
+            errors: [
+              {
+                message: 'Unhandled Exception'
+              }
+            ]
+          }
+        }
+      })
 
-    await cascadingBranchMerge(
-      ['release/'],
-      'develop',
-      'my-feature',
-      'release/1.0',
-      mockOwner,
-      mockRepo,
-      mockOctokit,
-      mockPullNumber,
-      'handle',
-      mockLogger
-    )
+      mockOctokit.rest.pulls.create.mockRejectedValue(error)
 
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledTimes(1)
-    expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      assignees: ['handle'],
-      title: expect.any(String),
-      body: expect.stringMatching(/^Issue with auto-merging a PR*/)
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        'handle',
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        assignees: ['handle'],
+        title: expect.any(String),
+        body: expect.stringMatching(/^Unknown issue when creating.*/)
+      })
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: expect.stringMatching(/.*encountered an issue.*/)
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
+      })
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
     })
 
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: expect.any(String)
-    })
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: mockOwner,
-      repo: mockRepo,
-      issue_number: mockPullNumber,
-      body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
+    it('UC-11: Adds a comment and breaks if a merge conflict exists', async () => {
+      const error = new RequestError('Validation Failed', 405, {
+        request: {
+          method: 'POST',
+          url: 'https://api.github.com/merge',
+          body: {
+            bar: 'baz'
+          },
+          headers: {
+            authorization: 'token secret13'
+          }
+        },
+        response: {
+          status: 405,
+          url: 'https://api.github.com/merge',
+          headers: {
+            'x-github-request-id': '1:2:3:4'
+          },
+          data: {
+            message: 'Merge conflict',
+            errors: [
+              {
+                message: 'Merge conflict'
+              }
+            ]
+          }
+        }
+      })
+
+      mockOctokit.rest.pulls.merge.mockRejectedValue(error)
+
+      mockOctokit.rest.pulls.create.mockResolvedValue({
+        data: { number: 13 }
+      } as Endpoints['POST /repos/{owner}/{repo}/pulls']['response'])
+
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.2',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        'handle',
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        assignees: ['handle'],
+        title: expect.any(String),
+        body: expect.stringMatching(/.*PR #13.*/)
+      })
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: expect.stringMatching(
+          /.*Could not auto merge PR #13 due to merge conflicts.*/
+        )
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
+      })
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+
+      expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledTimes(1)
     })
 
-    expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+    it('UC-12: Breaks if an unhandled error occurs merging a PR', async () => {
+      const error = new RequestError('Validation Failed', 500, {
+        request: {
+          method: 'POST',
+          url: 'https://api.github.com/foo',
+          body: {
+            bar: 'baz'
+          },
+          headers: {
+            authorization: 'token secret13'
+          }
+        },
+        response: {
+          status: 500,
+          url: 'https://api.github.com/foo',
+          headers: {
+            'x-github-request-id': '1:2:3:4'
+          },
+          data: {
+            message: 'Some Unhandled Error',
+            errors: [
+              {
+                message: 'Unhandled Exception'
+              }
+            ]
+          }
+        }
+      })
+
+      mockOctokit.rest.pulls.merge.mockRejectedValue(error)
+
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        'handle',
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        assignees: ['handle'],
+        title: expect.any(String),
+        body: expect.stringMatching(/^Issue with auto-merging a PR*/)
+      })
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: expect.any(String)
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
+      })
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Merge list construction', () => {
+    it('UC-13: Cascades the head list before the base list', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'release/1.3',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(1, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/2.0',
+        head: 'release/1.3',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+    })
+
+    it('UC-14: Does not duplicate ref_branch when it is already the last merge list entry', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'release/2.0',
+        'my-feature',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/2.0',
+        head: 'release/1.3',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+    })
+
+    it('UC-15: Does nothing when no branch matches the configured prefixes', async () => {
+      await cascadingBranchMerge(
+        ['hotfix/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.create).not.toHaveBeenCalled()
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':white_check_mark: Auto-merge was successful.'
+      })
+    })
+  })
+
+  describe('Depth limit edge cases', () => {
+    it('UC-16: Stops without a final ref merge when the limit is reached on the head list', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'release/1.0',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        2
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'release/1.1-1',
+        head: 'release/1.1',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: 'Reached configured max merge depth (2). Stopping cascade early.'
+      })
+    })
+
+    it('UC-17: Merges straight into ref_branch when maxMergeDepth is 0', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        0
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/1.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: 'Reached configured max merge depth (0). Performed a final merge to __develop__ and stopped.'
+      })
+    })
+
+    it('UC-18: Creates no PRs when maxMergeDepth is 0 and ref_branch is omitted', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        undefined,
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        0
+      )
+
+      expect(mockOctokit.rest.pulls.create).not.toHaveBeenCalled()
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: 'Reached configured max merge depth (0). Stopping cascade early.'
+      })
+    })
+
+    it('UC-19: Treats a skipped final ref merge as the final ref merge', async () => {
+      mockOctokit.rest.pulls.create
+        .mockResolvedValueOnce({ data: { number: 1 } } as any)
+        .mockRejectedValueOnce(noCommitsError())
+
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        1
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: 'Reached configured max merge depth (1). Performed a final merge to __develop__ and stopped.'
+      })
+    })
+  })
+
+  describe('Verbose cascade report', () => {
+    it('UC-20: Reports a repo-level maxMergeDepth source', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true,
+        2,
+        undefined,
+        undefined,
+        'repo'
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining(
+            'maxMergeDepth reached (repo-level setting: 2)'
+          )
+        })
+      )
+    })
+
+    it('UC-21: Omits the depth note when the cascade completes within the limit', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true,
+        5
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          labels: ['cascade-report'],
+          body: expect.stringContaining(
+            '**Total Cascade PRs**: 1 created, 0 skipped\n'
+          )
+        })
+      )
+    })
+
+    it('UC-22: Does not fail the cascade when the report issue cannot be created', async () => {
+      mockOctokit.rest.issues.create.mockRejectedValue(new Error('boom'))
+
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true
+      )
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        issue_number: mockPullNumber,
+        body: ':white_check_mark: Auto-merge was successful.'
+      })
+    })
+  })
+
+  describe('Downstream merge commit metadata', () => {
+    it('UC-23: Uses the originating title alone when no source label is provided', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        undefined,
+        'ABC-1234 Improve release notes'
+      )
+
+      expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledWith(
+        expect.objectContaining({
+          commit_title: 'ABC-1234 Improve release notes'
+        })
+      )
+    })
+
+    it('UC-24: Leaves the merge commit message to GitHub when no originating title is provided', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        pull_number: 1
+      })
+    })
   })
 })

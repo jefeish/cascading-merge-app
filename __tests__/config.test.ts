@@ -29,7 +29,7 @@ describe('Config loading', () => {
     }
   }
 
-  it('uses unlimited depth when maxMergeDepth is omitted', async () => {
+  it('CFG-01: uses unlimited depth when maxMergeDepth is omitted', async () => {
     const context = makeContext(`prefixes:\n  - release/\n`)
 
     const config = await loadConfig(context)
@@ -42,7 +42,7 @@ describe('Config loading', () => {
     })
   })
 
-  it('parses maxMergeDepth when provided', async () => {
+  it('CFG-02: parses maxMergeDepth when provided', async () => {
     const context = makeContext(
       `prefixes:\n  - release/\nref_branch: develop\nmaxMergeDepth: 3\n`
     )
@@ -52,7 +52,7 @@ describe('Config loading', () => {
     expect(config?.maxMergeDepth).toBe(3)
   })
 
-  it('rejects invalid maxMergeDepth values', async () => {
+  it('CFG-03: rejects invalid maxMergeDepth values', async () => {
     const context = makeContext(
       `prefixes:\n  - release/\nref_branch: develop\nmaxMergeDepth: 0\n`
     )
@@ -62,7 +62,7 @@ describe('Config loading', () => {
     )
   })
 
-  it('rejects empty ref_branch when explicitly provided', async () => {
+  it('CFG-04: rejects empty ref_branch when explicitly provided', async () => {
     const context = makeContext(`prefixes:\n  - release/\nref_branch: '   '\n`)
 
     await expect(loadConfig(context)).rejects.toThrow(

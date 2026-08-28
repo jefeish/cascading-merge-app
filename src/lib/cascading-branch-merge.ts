@@ -91,20 +91,21 @@ export async function cascadingBranchMerge(
       const sourceBranch = mergeList[i]
       let targetBranch = mergeList[i + 1]
       const isBaseMergeList = a === 1
+      // At the depth limit the cascade still makes one final hop into ref_branch,
+      // whether or not the natural next target already is ref_branch.
       const forceFinalRefMerge =
         isBaseMergeList &&
         hasRefBranch &&
         refBranch !== undefined &&
         remainingDepth <= 0 &&
-        sourceBranch !== refBranch &&
-        targetBranch !== refBranch
+        sourceBranch !== refBranch
 
       if (remainingDepth <= 0 && !forceFinalRefMerge) {
         stoppedByMaxDepth = true
         break
       }
 
-      if (forceFinalRefMerge) {
+      if (forceFinalRefMerge && refBranch !== undefined) {
         targetBranch = refBranch
       } else {
         // Count attempted cascade hops so the configured limit bounds total API work.
