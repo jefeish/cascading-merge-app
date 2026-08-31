@@ -13,10 +13,17 @@ import {
  */
 export default (app: Probot) => {
   const globalMaxMergeDepth = parseGlobalMaxMergeDepth()
+  const orgConfigRepo = process.env.ORG_CONFIG_REPO?.trim()
+  const orgConfigPath = process.env.ORG_CONFIG_PATH?.trim()
 
   app.log.info('Cascading Merge App loaded!')
   app.log.info(
-    `Global max merge depth cap: ${globalMaxMergeDepth ?? 'unlimited'}`
+    `App-level maxMergeDepth setting: MAX_MERGE_DEPTH=${globalMaxMergeDepth ?? 'unlimited'}`
+  )
+  app.log.info(
+    orgConfigRepo || orgConfigPath
+      ? `Org-level maxMergeDepth config settings: ORG_CONFIG_REPO=${orgConfigRepo || 'unset'}, ORG_CONFIG_PATH=${orgConfigPath || 'unset'}`
+      : 'Org-level maxMergeDepth config settings: ORG_CONFIG_REPO=unset, ORG_CONFIG_PATH=unset'
   )
 
   // Handle pull_request closed events

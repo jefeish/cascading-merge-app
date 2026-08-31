@@ -143,6 +143,17 @@ ORG_CONFIG_REPO=cascading-merge-admin
 ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
+The file at `ORG_CONFIG_PATH` uses the same YAML key as repository-level config:
+
+```yaml
+maxMergeDepth: 5
+```
+
+> [!NOTE]
+> If you use `ORG_CONFIG_REPO`, the GitHub App installation in the organization
+> must include that admin repo. When installing the app on selected repositories,
+> select both the target repositories and the admin repo.
+
 ### Step 5: Install the App
 
 1. Go to your GitHub App settings page
@@ -180,7 +191,7 @@ INFO  Cascading Merge App loaded!
    ```
    INFO  Processing merged PR #123: Your PR title
    INFO  Configuration loaded: prefixes=[release/], ref_branch=main, verbose=true, maxMergeDepth=5
-   INFO  Global max merge depth cap: 5
+   INFO  App-level maxMergeDepth setting: MAX_MERGE_DEPTH=5
    INFO  Resolved maxMergeDepth: repo=5, org=unlimited, app=5, effective=5
    ```
 

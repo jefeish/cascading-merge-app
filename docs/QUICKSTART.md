@@ -62,6 +62,13 @@ ORG_CONFIG_REPO=cascading-merge-admin
 ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
+The org admin repo file at `ORG_CONFIG_PATH` uses the same YAML key as a
+repository config file:
+
+```yaml
+maxMergeDepth: 5
+```
+
 ### 4. Start (1 min)
 
 - **Terminal: App**

@@ -106,7 +106,19 @@ ORG_CONFIG_REPO=cascading-merge-admin
 ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
+`ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` identify the org admin YAML file. Inside that file, set the org-level policy with the same key used by repository config:
+
+```yaml
+maxMergeDepth: 5
+```
+
 `MAX_MERGE_DEPTH` is the app-level safety ceiling. Org-level and repository-level `maxMergeDepth` may set lower values, but cannot exceed this app-level cap. If the configured org admin repo or file is missing, the app logs that condition and continues without an org-level depth value.
+
+> [!NOTE]
+> The GitHub App installation token can read the org admin repo only when the
+> app installation includes that repository. If the installation is scoped to
+> selected repositories, add the `ORG_CONFIG_REPO` repository to the installation
+> alongside the repositories that use cascade merging.
 
 > **💡 Configuration Required**: The app only processes repositories that have a `.github/cascading-merge.yml` file. Repositories without this file are automatically skipped, making it safe to install across an entire organization.
 

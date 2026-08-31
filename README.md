@@ -132,17 +132,35 @@ MAX_MERGE_DEPTH=5
 ```
 
 You can also point the app at an org admin repository for an org-level
-`maxMergeDepth` policy:
+`maxMergeDepth` policy. These environment variables identify where the org
+policy file lives:
 
 ```bash
 ORG_CONFIG_REPO=cascading-merge-admin
 ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
+Inside that org admin repo file, use the same YAML key as repository-level
+configuration:
+
+```yaml
+maxMergeDepth: 5
+```
+
 The app reads `ORG_CONFIG_REPO` from the same organization or owner as the
 repository that triggered the webhook. You can also use `owner/repo` syntax.
 If the admin repo or config file is missing, the app logs the missing org
 config and continues without an org-level depth value.
+
+> [!NOTE]
+> The GitHub App installation in the organization must include the admin repo
+> named by `ORG_CONFIG_REPO`. App permissions alone are not enough if the
+> installation is limited to selected repositories and the admin repo is not
+> selected.
+
+The names differ by location: `.env` uses uppercase environment variable names
+(`MAX_MERGE_DEPTH`, `ORG_CONFIG_REPO`, and `ORG_CONFIG_PATH`), while YAML config
+files use the existing camelCase application setting (`maxMergeDepth`).
 
 Depth values are hard upper bounds. Missing `maxMergeDepth` values are treated
 as unlimited for that scope:

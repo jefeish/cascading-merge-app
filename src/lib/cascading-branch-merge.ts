@@ -308,15 +308,14 @@ export async function cascadingBranchMerge(
 
   // If verbose mode is enabled, create a GitHub Issue with the cascade report
   if (verbose && createdPRs.length > 0) {
+    const maxMergeDepthSourceLabel = getMaxMergeDepthSourceLabel(
+      maxMergeDepthSource
+    )
     const depthLimitNote =
       stoppedByMaxDepth && maxMergeDepth !== undefined
-        ? maxMergeDepthSource === 'global'
-          ? `maxMergeDepth reached (app-level cap: ${maxMergeDepth})`
-          : maxMergeDepthSource === 'org'
-            ? `maxMergeDepth reached (org-level setting: ${maxMergeDepth})`
-          : maxMergeDepthSource === 'repo'
-            ? `maxMergeDepth reached (repo-level setting: ${maxMergeDepth})`
-            : `maxMergeDepth reached (${maxMergeDepth})`
+        ? maxMergeDepthSourceLabel
+          ? `maxMergeDepth reached (${maxMergeDepthSourceLabel}: ${maxMergeDepth})`
+          : `maxMergeDepth reached (${maxMergeDepth})`
         : undefined
 
     await createCascadeReport(
@@ -328,9 +327,30 @@ export async function cascadingBranchMerge(
       baseBranch,
       createdPRs,
       log,
+      refBranch,
+      maxMergeDepth,
+      maxMergeDepthSourceLabel,
       depthLimitNote
     )
   }
+}
+
+function getMaxMergeDepthSourceLabel(
+  maxMergeDepthSource?: MaxMergeDepthSource
+): string | undefined {
+  if (maxMergeDepthSource === 'global') {
+    return 'app-level cap'
+  }
+
+  if (maxMergeDepthSource === 'org') {
+    return 'org-level setting'
+  }
+
+  if (maxMergeDepthSource === 'repo') {
+    return 'repo-level setting'
+  }
+
+  return undefined
 }
 
 /**
@@ -359,9 +379,21 @@ async function createCascadeReport(
     skipped?: boolean
   }>,
   log: Logger,
+  refBranch?: string,
+  maxMergeDepth?: number,
+  maxMergeDepthSourceLabel?: string,
   depthLimitNote?: string
 ) {
   log.info('Creating cascade report issue...')
+
+  const finalBranch =
+    typeof refBranch === 'string' && refBranch.trim() !== ''
+      ? `\`${refBranch}\``
+      : '`none`'
+  const maxMergeDepthSummary =
+    maxMergeDepth === undefined
+      ? '`unlimited`'
+      : `\`${maxMergeDepth}\`${maxMergeDepthSourceLabel ? ` (${maxMergeDepthSourceLabel})` : ''}`
 
   // Build the Mermaid gitGraph diagram
   // Use init directive to set the feature branch as the main branch so the diagram starts there
@@ -406,6 +438,8 @@ async function createCascadeReport(
 ## Trigger Information
 - **Original PR**: #${pullNumber}
 - **Merged Branch**: \`${headBranch}\` → \`${baseBranch}\`
+- **Final Branch**: ${finalBranch}
+- **Max Merge Depth**: ${maxMergeDepthSummary}
 - **Total Cascade PRs**: ${createdPRs.filter(pr => !pr.skipped).length} created, ${createdPRs.filter(pr => pr.skipped).length} skipped${depthLimitNote ? ` (${depthLimitNote})` : ''}
 
 ## Cascade PRs

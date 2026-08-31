@@ -55,6 +55,10 @@ export async function loadOrgMaxMergeDepth(
     context.payload.repository.owner.login
   )
 
+  context.log.info(
+    `Loading org-level maxMergeDepth from ${owner}/${repo}/${orgConfigPath}`
+  )
+
   try {
     const config = await loadYamlConfig(context, {
       owner,
@@ -62,13 +66,37 @@ export async function loadOrgMaxMergeDepth(
       path: orgConfigPath
     })
 
-    return validateMaxMergeDepth(config.maxMergeDepth)
+    if (!Object.prototype.hasOwnProperty.call(config, 'maxMergeDepth')) {
+      context.log.info(
+        `Org-level maxMergeDepth config at ${owner}/${repo}/${orgConfigPath} does not define maxMergeDepth; treating org-level maxMergeDepth as unlimited`
+      )
+    }
+
+    const maxMergeDepth = validateMaxMergeDepth(config.maxMergeDepth)
+    context.log.info(
+      `Org-level maxMergeDepth setting: ${maxMergeDepth ?? 'unlimited'}`
+    )
+
+    return maxMergeDepth
   } catch (error: any) {
     if (error.status === 404) {
       context.log.info(
         `Org-level maxMergeDepth config not found at ${owner}/${repo}/${orgConfigPath}; continuing without org-level maxMergeDepth`
       )
       return undefined
+    }
+
+    if (error.status === 403) {
+      context.log.info(
+        `Org-level maxMergeDepth config could not be read from ${owner}/${repo}/${orgConfigPath} because the app installation token does not have access; ensure the app is installed on the admin repo with contents read permission`
+      )
+      return undefined
+    }
+
+    if (error.message?.startsWith('Configuration error:')) {
+      context.log.info(
+        `Org-level maxMergeDepth config at ${owner}/${repo}/${orgConfigPath} is misconfigured: ${error.message}`
+      )
     }
 
     throw new Error(
@@ -88,8 +116,13 @@ async function loadYamlConfig(
   }
 
   const content = Buffer.from(data.content, 'base64').toString('utf-8')
+  const config = yaml.load(content)
 
-  return yaml.load(content) as Partial<CascadingMergeConfig>
+  if (config === null || config === undefined) {
+    return {}
+  }
+
+  return config as Partial<CascadingMergeConfig>
 }
 
 function parseOrgConfigRepo(

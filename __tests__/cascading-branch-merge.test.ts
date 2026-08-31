@@ -1141,6 +1141,70 @@ describe('Cascading Branch Merge', () => {
       )
     })
 
+    it('UC-28: Reports the configured final branch and max depth even when the limit is not reached', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true,
+        5,
+        undefined,
+        undefined,
+        'org'
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          labels: ['cascade-report'],
+          body: expect.stringContaining('**Final Branch**: `develop`')
+        })
+      )
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          labels: ['cascade-report'],
+          body: expect.stringContaining(
+            '**Max Merge Depth**: `5` (org-level setting)'
+          )
+        })
+      )
+    })
+
+    it('UC-29: Reports no final branch when ref_branch is not configured', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        undefined,
+        'release/1.2',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          labels: ['cascade-report'],
+          body: expect.stringContaining('**Final Branch**: `none`')
+        })
+      )
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          labels: ['cascade-report'],
+          body: expect.stringContaining('**Max Merge Depth**: `unlimited`')
+        })
+      )
+    })
+
     it('UC-22: Does not fail the cascade when the report issue cannot be created', async () => {
       mockOctokit.rest.issues.create.mockRejectedValue(new Error('boom'))
 

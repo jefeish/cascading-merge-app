@@ -125,7 +125,13 @@ ref_branch: 'main'
 maxMergeDepth: 5
 ```
 
-If `.env` sets `MAX_MERGE_DEPTH`, repository and org-level `maxMergeDepth` values cannot exceed that app-level cap value. If `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` point to a missing repo or file, the app logs the missing org-level config and continues without an org-level depth value.
+If `.env` sets `MAX_MERGE_DEPTH`, repository and org-level `maxMergeDepth` values cannot exceed that app-level cap value. `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` only locate the org admin YAML file; inside that file, the setting name is `maxMergeDepth`. If `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` point to a missing repo or file, the app logs the missing org-level config and continues without an org-level depth value.
+
+> [!NOTE]
+> If the org-level config is not picked up, confirm the GitHub App installation
+> in the organization includes the admin repo named by `ORG_CONFIG_REPO`. The
+> installation token can only read repositories included in that installation,
+> and the app needs contents read permission to fetch `ORG_CONFIG_PATH`.
 
 **Invalid examples:**
 
