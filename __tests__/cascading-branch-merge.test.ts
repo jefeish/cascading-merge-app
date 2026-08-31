@@ -992,6 +992,70 @@ describe('Cascading Branch Merge', () => {
         body: 'Reached configured max merge depth (1). Performed a final merge to __develop__ and stopped.'
       })
     })
+
+    it('UC-25: Completes naturally when the cascade is shorter than the depth cap', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        5
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining('Reached configured max merge depth')
+        })
+      )
+    })
+
+    it('UC-26: Completes naturally when the cascade length exactly equals the depth cap', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        2
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenNthCalledWith(2, {
+        owner: mockOwner,
+        repo: mockRepo,
+        base: 'develop',
+        head: 'release/2.0',
+        title: expect.anything(),
+        body: expect.anything()
+      })
+      expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining('Reached configured max merge depth')
+        })
+      )
+    })
   })
 
   describe('Verbose cascade report', () => {
