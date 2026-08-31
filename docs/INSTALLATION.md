@@ -137,6 +137,10 @@ NODE_ENV=development
 
 # Optional global hard cap for cascade depth
 MAX_MERGE_DEPTH=5
+
+# Optional org-level maxMergeDepth policy/default
+ORG_CONFIG_REPO=cascading-merge-admin
+ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
 ### Step 5: Install the App
@@ -177,9 +181,10 @@ INFO  Cascading Merge App loaded!
    INFO  Processing merged PR #123: Your PR title
    INFO  Configuration loaded: prefixes=[release/], ref_branch=main, verbose=true, maxMergeDepth=5
    INFO  Global max merge depth cap: 5
+   INFO  Resolved maxMergeDepth: repo=5, org=unlimited, app=5, effective=5
    ```
 
-If both global and repository-level depth values are set, the app applies the lower value.
+If repository, org-level, and app-level depth values are set, the app applies the lowest configured value. Missing values are treated as unlimited for that scope. If `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` reference a missing repo or file, the app logs the missing org-level config and continues without an org-level depth value.
 
 ### Check GitHub App
 

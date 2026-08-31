@@ -125,7 +125,7 @@ ref_branch: 'main'
 maxMergeDepth: 5
 ```
 
-If `.env` sets `MAX_MERGE_DEPTH`, repository `maxMergeDepth` cannot exceed that global cap value.
+If `.env` sets `MAX_MERGE_DEPTH`, repository and org-level `maxMergeDepth` values cannot exceed that app-level cap value. If `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` point to a missing repo or file, the app logs the missing org-level config and continues without an org-level depth value.
 
 **Invalid examples:**
 

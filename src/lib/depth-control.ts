@@ -28,15 +28,45 @@ export function parseGlobalMaxMergeDepth(
  */
 export function resolveEffectiveMaxMergeDepth(
   repoMaxMergeDepth: number | undefined,
+  orgMaxMergeDepth: number | undefined,
   globalMaxMergeDepth: number | undefined
 ): number | undefined {
-  if (globalMaxMergeDepth === undefined) {
-    return repoMaxMergeDepth
+  const configuredDepths = [
+    repoMaxMergeDepth,
+    orgMaxMergeDepth,
+    globalMaxMergeDepth
+  ].filter((depth): depth is number => depth !== undefined)
+
+  if (configuredDepths.length === 0) {
+    return undefined
   }
 
-  if (repoMaxMergeDepth === undefined) {
-    return globalMaxMergeDepth
+  return Math.min(...configuredDepths)
+}
+
+export type MaxMergeDepthSource = 'global' | 'org' | 'repo'
+
+export function resolveMaxMergeDepthSource(
+  effectiveMaxMergeDepth: number | undefined,
+  repoMaxMergeDepth: number | undefined,
+  orgMaxMergeDepth: number | undefined,
+  globalMaxMergeDepth: number | undefined
+): MaxMergeDepthSource | undefined {
+  if (effectiveMaxMergeDepth === undefined) {
+    return undefined
   }
 
-  return Math.min(repoMaxMergeDepth, globalMaxMergeDepth)
+  if (repoMaxMergeDepth === effectiveMaxMergeDepth) {
+    return 'repo'
+  }
+
+  if (orgMaxMergeDepth === effectiveMaxMergeDepth) {
+    return 'org'
+  }
+
+  if (globalMaxMergeDepth === effectiveMaxMergeDepth) {
+    return 'global'
+  }
+
+  return undefined
 }

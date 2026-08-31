@@ -1,9 +1,10 @@
 import { Probot } from 'probot'
 import { cascadingBranchMerge } from './lib/cascading-branch-merge.js'
-import { loadConfig } from './lib/config.js'
+import { loadConfig, loadOrgMaxMergeDepth } from './lib/config.js'
 import {
     parseGlobalMaxMergeDepth,
-    resolveEffectiveMaxMergeDepth
+    resolveEffectiveMaxMergeDepth,
+    resolveMaxMergeDepthSource
 } from './lib/depth-control.js'
 
 /**
@@ -66,34 +67,24 @@ export default (app: Probot) => {
         `Configuration loaded: prefixes=[${config.prefixes.join(', ')}], ref_branch=${config.ref_branch ?? 'none'}, verbose=${config.verbose ?? false}, maxMergeDepth=${config.maxMergeDepth ?? 'unlimited'}`
       )
 
+      const orgMaxMergeDepth = await loadOrgMaxMergeDepth(context)
+
       const effectiveMaxMergeDepth = resolveEffectiveMaxMergeDepth(
         config.maxMergeDepth,
+        orgMaxMergeDepth,
         globalMaxMergeDepth
       )
 
-      let maxMergeDepthSource: 'global' | 'repo' | undefined
+      const maxMergeDepthSource = resolveMaxMergeDepthSource(
+        effectiveMaxMergeDepth,
+        config.maxMergeDepth,
+        orgMaxMergeDepth,
+        globalMaxMergeDepth
+      )
 
-      if (effectiveMaxMergeDepth !== undefined) {
-        if (
-          globalMaxMergeDepth !== undefined &&
-          (config.maxMergeDepth === undefined ||
-            config.maxMergeDepth > globalMaxMergeDepth)
-        ) {
-          maxMergeDepthSource = 'global'
-        } else {
-          maxMergeDepthSource = 'repo'
-        }
-      }
-
-      if (
-        globalMaxMergeDepth !== undefined &&
-        (config.maxMergeDepth === undefined ||
-          config.maxMergeDepth > globalMaxMergeDepth)
-      ) {
-        context.log.info(
-          `Applying global max merge depth cap (${globalMaxMergeDepth}). Effective maxMergeDepth=${effectiveMaxMergeDepth}.`
-        )
-      }
+      context.log.info(
+        `Resolved maxMergeDepth: repo=${config.maxMergeDepth ?? 'unlimited'}, org=${orgMaxMergeDepth ?? 'unlimited'}, app=${globalMaxMergeDepth ?? 'unlimited'}, effective=${effectiveMaxMergeDepth ?? 'unlimited'}`
+      )
 
       // Check if the base branch matches any configured prefix
       const matchesPrefix = config.prefixes.some(prefix =>

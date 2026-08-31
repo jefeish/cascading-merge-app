@@ -30,6 +30,13 @@ sequenceDiagram
         App->>Repo: GET .github/cascading-merge.yml
         Repo-->>App: prefixes, ref_branch, verbose, maxMergeDepth?
 
+        opt ORG_CONFIG_REPO and ORG_CONFIG_PATH are set
+            App->>Repo: GET org admin repo config
+            Repo-->>App: org maxMergeDepth? or missing config
+        end
+
+        Note over App: Resolve maxMergeDepth from repo, org, and app settings
+
         Note over App: Validate base branch
         App->>App: Does release/1.0 match configured prefixes?
 
@@ -95,6 +102,7 @@ ref_branch: 'main'
 verbose: true # Creates report issue with Mermaid diagram
 maxMergeDepth: 5 # Optional; omit for unlimited depth
                  # With ref_branch set, one final merge to ref_branch is still attempted after depth is reached
+                 # Org-level and app-level maxMergeDepth values can cap this value
 ```
 
 ## Verbose Report Output

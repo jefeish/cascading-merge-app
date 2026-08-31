@@ -1,6 +1,8 @@
 import yaml from 'js-yaml'
 import type { CascadingMergeConfig } from '../types/config.js'
 
+const REPO_CONFIG_PATH = '.github/cascading-merge.yml'
+
 /**
  * Loads cascading merge configuration from repository's .github/cascading-merge.yml file
  *
@@ -11,36 +13,102 @@ import type { CascadingMergeConfig } from '../types/config.js'
 export async function loadConfig(
   context: any
 ): Promise<CascadingMergeConfig | null> {
-  const configPath = '.github/cascading-merge.yml'
-
   try {
-    // Fetch the config file from the repository
-    const { data } = await context.octokit.repos.getContent({
+    const config = await loadYamlConfig(context, {
       owner: context.payload.repository.owner.login,
       repo: context.payload.repository.name,
-      path: configPath
+      path: REPO_CONFIG_PATH
     })
 
-    // Decode base64 content
-    if ('content' in data) {
-      const content = Buffer.from(data.content, 'base64').toString('utf-8')
-      const config = yaml.load(content) as Partial<CascadingMergeConfig>
-
-      // Validate and merge with defaults
-      return validateConfig(config)
-    } else {
-      throw new Error('Configuration file is a directory, not a file')
-    }
+    return validateConfig(config)
   } catch (error: any) {
     if (error.status === 404) {
       // Config file not found - skip cascade merge for this repository
       context.log.info(
-        `No configuration file found at ${configPath}, skipping cascade merge for this repository`
+        `No configuration file found at ${REPO_CONFIG_PATH}, skipping cascade merge for this repository`
       )
       return null
     }
     throw new Error(`Failed to load configuration: ${error.message}`)
   }
+}
+
+export async function loadOrgMaxMergeDepth(
+  context: any,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<number | undefined> {
+  const orgConfigRepo = env.ORG_CONFIG_REPO?.trim()
+  const orgConfigPath = env.ORG_CONFIG_PATH?.trim()
+
+  if (!orgConfigRepo && !orgConfigPath) {
+    return undefined
+  }
+
+  if (!orgConfigRepo || !orgConfigPath) {
+    throw new Error(
+      'Configuration error: ORG_CONFIG_REPO and ORG_CONFIG_PATH must both be set to load org-level maxMergeDepth'
+    )
+  }
+
+  const { owner, repo } = parseOrgConfigRepo(
+    orgConfigRepo,
+    context.payload.repository.owner.login
+  )
+
+  try {
+    const config = await loadYamlConfig(context, {
+      owner,
+      repo,
+      path: orgConfigPath
+    })
+
+    return validateMaxMergeDepth(config.maxMergeDepth)
+  } catch (error: any) {
+    if (error.status === 404) {
+      context.log.info(
+        `Org-level maxMergeDepth config not found at ${owner}/${repo}/${orgConfigPath}; continuing without org-level maxMergeDepth`
+      )
+      return undefined
+    }
+
+    throw new Error(
+      `Failed to load org-level maxMergeDepth config from ${owner}/${repo}/${orgConfigPath}: ${error.message}`
+    )
+  }
+}
+
+async function loadYamlConfig(
+  context: any,
+  location: { owner: string; repo: string; path: string }
+): Promise<Partial<CascadingMergeConfig>> {
+  const { data } = await context.octokit.repos.getContent(location)
+
+  if (!('content' in data)) {
+    throw new Error('Configuration file is a directory, not a file')
+  }
+
+  const content = Buffer.from(data.content, 'base64').toString('utf-8')
+
+  return yaml.load(content) as Partial<CascadingMergeConfig>
+}
+
+function parseOrgConfigRepo(
+  orgConfigRepo: string,
+  fallbackOwner: string
+): { owner: string; repo: string } {
+  const parts = orgConfigRepo.split('/').map(part => part.trim())
+
+  if (parts.length === 1 && parts[0]) {
+    return { owner: fallbackOwner, repo: parts[0] }
+  }
+
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return { owner: parts[0], repo: parts[1] }
+  }
+
+  throw new Error(
+    'Configuration error: ORG_CONFIG_REPO must be a repository name or owner/repository'
+  )
 }
 
 /**
@@ -86,19 +154,27 @@ function validateConfig(
   }
 
   // Validate maxMergeDepth
-  if (result.maxMergeDepth !== undefined) {
-    if (
-      typeof result.maxMergeDepth !== 'number' ||
-      !Number.isInteger(result.maxMergeDepth) ||
-      result.maxMergeDepth < 1
-    ) {
-      throw new Error(
-        'Configuration error: "maxMergeDepth" must be an integer greater than or equal to 1 when provided'
-      )
-    }
-  }
+  result.maxMergeDepth = validateMaxMergeDepth(result.maxMergeDepth)
 
   return result
+}
+
+function validateMaxMergeDepth(maxMergeDepth: unknown): number | undefined {
+  if (maxMergeDepth === undefined) {
+    return undefined
+  }
+
+  if (
+    typeof maxMergeDepth !== 'number' ||
+    !Number.isInteger(maxMergeDepth) ||
+    maxMergeDepth < 1
+  ) {
+    throw new Error(
+      'Configuration error: "maxMergeDepth" must be an integer greater than or equal to 1 when provided'
+    )
+  }
+
+  return maxMergeDepth
 }
 
 /**

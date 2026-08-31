@@ -409,7 +409,7 @@ describe('Cascading Branch Merge', () => {
           repo: mockRepo,
           title: `🔄 Cascade Merge Report: PR #${mockPullNumber}`,
           body: expect.stringContaining(
-            'Total Cascade PRs**: 3 created, 0 skipped (maxMergeDepth reached (global cap: 2))'
+            'Total Cascade PRs**: 3 created, 0 skipped (maxMergeDepth reached (app-level cap: 2))'
           )
         })
       )
@@ -1082,6 +1082,34 @@ describe('Cascading Branch Merge', () => {
         expect.objectContaining({
           body: expect.stringContaining(
             'maxMergeDepth reached (repo-level setting: 2)'
+          )
+        })
+      )
+    })
+
+    it('UC-27: Reports an org-level maxMergeDepth source', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        true,
+        2,
+        undefined,
+        undefined,
+        'org'
+      )
+
+      expect(mockOctokit.rest.issues.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining(
+            'maxMergeDepth reached (org-level setting: 2)'
           )
         })
       )

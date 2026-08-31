@@ -1,5 +1,6 @@
 import { Endpoints } from '@octokit/types'
 import type { Logger } from 'probot'
+import type { MaxMergeDepthSource } from './depth-control.js'
 
 type GetRepositoryBranchesResponse =
   Endpoints['GET /repos/{owner}/{repo}/branches']['response']['data']
@@ -37,7 +38,7 @@ export async function cascadingBranchMerge(
   maxMergeDepth?: number,
   originatingPrTitle?: string,
   originatingPrSource?: string,
-  maxMergeDepthSource?: 'global' | 'repo'
+  maxMergeDepthSource?: MaxMergeDepthSource
 ) {
   let success = true
   let remainingDepth = maxMergeDepth ?? Number.POSITIVE_INFINITY
@@ -310,7 +311,9 @@ export async function cascadingBranchMerge(
     const depthLimitNote =
       stoppedByMaxDepth && maxMergeDepth !== undefined
         ? maxMergeDepthSource === 'global'
-          ? `maxMergeDepth reached (global cap: ${maxMergeDepth})`
+          ? `maxMergeDepth reached (app-level cap: ${maxMergeDepth})`
+          : maxMergeDepthSource === 'org'
+            ? `maxMergeDepth reached (org-level setting: ${maxMergeDepth})`
           : maxMergeDepthSource === 'repo'
             ? `maxMergeDepth reached (repo-level setting: ${maxMergeDepth})`
             : `maxMergeDepth reached (${maxMergeDepth})`

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { loadConfig } from '../src/lib/config.js'
+import { loadConfig, loadOrgMaxMergeDepth } from '../src/lib/config.js'
 
 describe('Config loading', () => {
   const baseContext = {
@@ -24,6 +24,36 @@ describe('Config loading', () => {
               content: Buffer.from(yamlContent, 'utf-8').toString('base64')
             }
           })
+        }
+      }
+    }
+  }
+
+  function makeOrgContext(responses: Record<string, string>): any {
+    return {
+      ...baseContext,
+      octokit: {
+        repos: {
+          getContent: async (request: {
+            owner: string
+            repo: string
+            path: string
+          }) => {
+            const key = `${request.owner}/${request.repo}/${request.path}`
+            const response = responses[key]
+
+            if (response === undefined) {
+              const error = new Error('Not Found') as Error & { status: number }
+              error.status = 404
+              throw error
+            }
+
+            return {
+              data: {
+                content: Buffer.from(response, 'utf-8').toString('base64')
+              }
+            }
+          }
         }
       }
     }
@@ -67,6 +97,70 @@ describe('Config loading', () => {
 
     await expect(loadConfig(context)).rejects.toThrow(
       'Configuration error: "ref_branch" must be a non-empty string when provided'
+    )
+  })
+
+  it('CFG-05: returns undefined org maxMergeDepth when org config env is absent', async () => {
+    const context = makeOrgContext({})
+
+    await expect(loadOrgMaxMergeDepth(context, {})).resolves.toBeUndefined()
+  })
+
+  it('CFG-06: loads org maxMergeDepth from admin repo and path', async () => {
+    const context = makeOrgContext({
+      'test-owner/cascading-merge-admin/.github/cascading-merge.yml':
+        'maxMergeDepth: 4\n'
+    })
+
+    await expect(
+      loadOrgMaxMergeDepth(context, {
+        ORG_CONFIG_REPO: 'cascading-merge-admin',
+        ORG_CONFIG_PATH: '.github/cascading-merge.yml'
+      })
+    ).resolves.toBe(4)
+  })
+
+  it('CFG-07: supports owner/repo syntax for org config repo', async () => {
+    const context = makeOrgContext({
+      'policy-owner/cascading-merge-admin/.github/cascading-merge.yml':
+        'maxMergeDepth: 3\n'
+    })
+
+    await expect(
+      loadOrgMaxMergeDepth(context, {
+        ORG_CONFIG_REPO: 'policy-owner/cascading-merge-admin',
+        ORG_CONFIG_PATH: '.github/cascading-merge.yml'
+      })
+    ).resolves.toBe(3)
+  })
+
+  it('CFG-08: treats missing org config repo or file as no org maxMergeDepth', async () => {
+    const context = makeOrgContext({})
+
+    await expect(
+      loadOrgMaxMergeDepth(context, {
+        ORG_CONFIG_REPO: 'cascading-merge-admin',
+        ORG_CONFIG_PATH: '.github/cascading-merge.yml'
+      })
+    ).resolves.toBeUndefined()
+    expect(context.log.info).toHaveBeenCalledWith(
+      'Org-level maxMergeDepth config not found at test-owner/cascading-merge-admin/.github/cascading-merge.yml; continuing without org-level maxMergeDepth'
+    )
+  })
+
+  it('CFG-09: rejects invalid org maxMergeDepth values', async () => {
+    const context = makeOrgContext({
+      'test-owner/cascading-merge-admin/.github/cascading-merge.yml':
+        'maxMergeDepth: 0\n'
+    })
+
+    await expect(
+      loadOrgMaxMergeDepth(context, {
+        ORG_CONFIG_REPO: 'cascading-merge-admin',
+        ORG_CONFIG_PATH: '.github/cascading-merge.yml'
+      })
+    ).rejects.toThrow(
+      'Configuration error: "maxMergeDepth" must be an integer greater than or equal to 1 when provided'
     )
   })
 })

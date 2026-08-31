@@ -44,7 +44,7 @@ verbose: true
 # If omitted, cascade depth is unlimited
 # When used with ref_branch, the app still performs one final merge to
 # ref_branch after reaching maxMergeDepth, then stops
-# If global MAX_MERGE_DEPTH is configured, this value cannot exceed it
+# If org-level or app-level maxMergeDepth is configured, this value cannot exceed it
 maxMergeDepth: 5
 
 # --- How It Works ---

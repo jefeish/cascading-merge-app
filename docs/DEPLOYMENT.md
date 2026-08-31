@@ -100,9 +100,13 @@ MAX_RETRIES=3               # Max API retry attempts
 
 # Global cascade depth cap (hard upper bound across repositories)
 MAX_MERGE_DEPTH=5
+
+# Optional org-level maxMergeDepth policy/default
+ORG_CONFIG_REPO=cascading-merge-admin
+ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
-`MAX_MERGE_DEPTH` is a global ceiling. Repository-level `maxMergeDepth` may set a lower value, but cannot exceed this global cap.
+`MAX_MERGE_DEPTH` is the app-level safety ceiling. Org-level and repository-level `maxMergeDepth` may set lower values, but cannot exceed this app-level cap. If the configured org admin repo or file is missing, the app logs that condition and continues without an org-level depth value.
 
 > **💡 Configuration Required**: The app only processes repositories that have a `.github/cascading-merge.yml` file. Repositories without this file are automatically skipped, making it safe to install across an entire organization.
 

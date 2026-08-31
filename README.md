@@ -16,8 +16,8 @@ This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.a
 
 - **Automatic Cascade Merging**: When a PR is merged to a release branch, automatically creates PRs to merge into all subsequent branches
 - **Semantic Version Ordering**: Uses Bitbucket's proven algorithm to correctly order branches with complex versioning (e.g., `1.1-rc1`, `1.2-a`, `2.0`)
-- **Configurable Cascade Depth**: Supports per-repository `maxMergeDepth` controls with unlimited depth when omitted
-- **Global Depth Cap**: Supports optional `MAX_MERGE_DEPTH` as a hard upper bound across repositories
+- **Configurable Cascade Depth**: Supports per-repository and org-level `maxMergeDepth` controls with unlimited depth when omitted
+- **App-Level Depth Cap**: Supports optional `MAX_MERGE_DEPTH` as a hard upper bound across repositories and org policy
 - **Visual Reporting**: Optional verbose mode creates GitHub Issues with Mermaid diagrams showing cascade flow
 - **Repository-Scoped Configuration**: Each repository controls its own cascade rules via `.github/cascading-merge.yml`
 - **Bot PR Detection**: Automatically skips cascade logic for bot-created PRs to prevent duplicate cascades
@@ -123,27 +123,40 @@ See the complete configuration example with documentation: [`.github/cascading-m
 | `verbose`       | No       | `false`           | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
 | `maxMergeDepth` | No       | Unlimited (omit)  | Maximum number of cascade merge hops per originating PR; if `ref_branch` is set, one final merge to `ref_branch` is still attempted |
 
-### Global Depth Cap
+### Org And App Depth Caps
 
-You can set a global maximum cascade depth using `.env`:
+You can set an app-level maximum cascade depth using `.env`:
 
 ```bash
 MAX_MERGE_DEPTH=5
 ```
 
-This value is a hard upper bound across all repositories:
+You can also point the app at an org admin repository for an org-level
+`maxMergeDepth` policy:
 
-- If repository `maxMergeDepth` is lower, the lower repository value is used.
-- If repository `maxMergeDepth` is higher, it is capped to `MAX_MERGE_DEPTH`.
-- If repository `maxMergeDepth` is omitted, `MAX_MERGE_DEPTH` is used.
+```bash
+ORG_CONFIG_REPO=cascading-merge-admin
+ORG_CONFIG_PATH=.github/cascading-merge.yml
+```
+
+The app reads `ORG_CONFIG_REPO` from the same organization or owner as the
+repository that triggered the webhook. You can also use `owner/repo` syntax.
+If the admin repo or config file is missing, the app logs the missing org
+config and continues without an org-level depth value.
+
+Depth values are hard upper bounds. Missing `maxMergeDepth` values are treated
+as unlimited for that scope:
+
+* If repository `maxMergeDepth` is lower, the lower repository value is used.
+* If repository `maxMergeDepth` is omitted, org-level depth is used when configured.
+* If repository and org-level depth are omitted, `MAX_MERGE_DEPTH` is used when configured.
+* If all three values are omitted, cascade depth is unlimited.
 
 Effective depth rule:
 
 ```text
-effectiveMaxMergeDepth = min(repo maxMergeDepth, app MAX_MERGE_DEPTH)
+effectiveMaxMergeDepth = minDefined(repo maxMergeDepth, org maxMergeDepth, app MAX_MERGE_DEPTH)
 ```
-
-If `MAX_MERGE_DEPTH` is not set, only repository configuration is used.
 
 ### Missing Configuration
 

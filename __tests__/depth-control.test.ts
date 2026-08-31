@@ -1,6 +1,7 @@
 import {
-  parseGlobalMaxMergeDepth,
-  resolveEffectiveMaxMergeDepth
+    parseGlobalMaxMergeDepth,
+    resolveEffectiveMaxMergeDepth,
+    resolveMaxMergeDepthSource
 } from '../src/lib/depth-control.js'
 
 describe('Depth control', () => {
@@ -25,15 +26,40 @@ describe('Depth control', () => {
   })
 
   it('DEP-05: uses repo-level depth when global cap is not set', () => {
-    expect(resolveEffectiveMaxMergeDepth(3, undefined)).toBe(3)
+    expect(resolveEffectiveMaxMergeDepth(3, undefined, undefined)).toBe(3)
   })
 
   it('DEP-06: uses global cap when repo-level depth is not set', () => {
-    expect(resolveEffectiveMaxMergeDepth(undefined, 5)).toBe(5)
+    expect(resolveEffectiveMaxMergeDepth(undefined, undefined, 5)).toBe(5)
   })
 
   it('DEP-07: applies global cap as hard upper bound', () => {
-    expect(resolveEffectiveMaxMergeDepth(10, 5)).toBe(5)
-    expect(resolveEffectiveMaxMergeDepth(2, 5)).toBe(2)
+    expect(resolveEffectiveMaxMergeDepth(10, undefined, 5)).toBe(5)
+    expect(resolveEffectiveMaxMergeDepth(2, undefined, 5)).toBe(2)
+  })
+
+  it('DEP-08: uses org-level depth when repo-level depth is not set', () => {
+    expect(resolveEffectiveMaxMergeDepth(undefined, 4, undefined)).toBe(4)
+  })
+
+  it('DEP-09: applies the strictest configured repo, org, or global depth', () => {
+    expect(resolveEffectiveMaxMergeDepth(2, 5, 10)).toBe(2)
+    expect(resolveEffectiveMaxMergeDepth(8, 5, 10)).toBe(5)
+    expect(resolveEffectiveMaxMergeDepth(8, 7, 3)).toBe(3)
+  })
+
+  it('DEP-10: returns undefined when all scopes are unlimited', () => {
+    expect(
+      resolveEffectiveMaxMergeDepth(undefined, undefined, undefined)
+    ).toBeUndefined()
+  })
+
+  it('DEP-11: identifies the source of the effective max merge depth', () => {
+    expect(resolveMaxMergeDepthSource(2, 2, 5, 10)).toBe('repo')
+    expect(resolveMaxMergeDepthSource(5, 8, 5, 10)).toBe('org')
+    expect(resolveMaxMergeDepthSource(3, 8, 7, 3)).toBe('global')
+    expect(
+      resolveMaxMergeDepthSource(undefined, undefined, undefined, undefined)
+    ).toBeUndefined()
   })
 })

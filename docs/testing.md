@@ -104,7 +104,7 @@ Branch fixture used by all cases:
 | ----- | -------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | UC-04 | Final ref merge after the limit        | base `release/1.0`, ref `develop`, depth `2` | 2 normal hops, then a forced 3rd PR into `develop`; "Performed a final merge" comment    |
 | UC-05 | Limit lands on the last release branch | base `release/1.3`, ref `develop`, depth `1` | Forced final PR `release/2.0` → `develop` still happens (regression: previously skipped) |
-| UC-06 | Global depth cap attribution           | verbose on, depth `2`, source `global`       | Report notes `maxMergeDepth reached (global cap: 2)`                                     |
+| UC-06 | App depth cap attribution              | verbose on, depth `2`, source `global`       | Report notes `maxMergeDepth reached (app-level cap: 2)`                                 |
 | UC-07 | No `ref_branch` configured             | ref `undefined`, no depth limit              | Cascade ends at the last release branch; no final merge                                  |
 
 #### Failure handling
@@ -141,6 +141,7 @@ Branch fixture used by all cases:
 | ID    | Use case                       | Scenario                             | Expected outcome                                             |
 | ----- | ------------------------------ | ------------------------------------ | ------------------------------------------------------------ |
 | UC-20 | Repo depth cap attribution     | verbose on, depth `2`, source `repo` | Report notes `maxMergeDepth reached (repo-level setting: 2)` |
+| UC-27 | Org depth cap attribution      | verbose on, depth `2`, source `org`  | Report notes `maxMergeDepth reached (org-level setting: 2)`  |
 | UC-21 | Cascade within the limit       | verbose on, depth `5`, 1 hop needed  | Report contains no depth note                                |
 | UC-22 | Report issue cannot be created | verbose on, `issues.create` rejects  | Error is swallowed; the cascade is still reported successful |
 
@@ -159,6 +160,11 @@ Branch fixture used by all cases:
 | CFG-02 | Depth provided   | `maxMergeDepth: 3`     | Parsed as `3`                                                          |
 | CFG-03 | Invalid depth    | `maxMergeDepth: 0`     | Throws `"maxMergeDepth" must be an integer greater than or equal to 1` |
 | CFG-04 | Blank ref branch | `ref_branch: '   '`    | Throws `"ref_branch" must be a non-empty string when provided`         |
+| CFG-05 | Org env absent   | `{}`                   | Org-level `maxMergeDepth` is `undefined`                               |
+| CFG-06 | Org config       | `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` | Loads org-level `maxMergeDepth`                              |
+| CFG-07 | Org owner/repo   | `owner/repo` syntax    | Loads org-level `maxMergeDepth` from explicit owner                    |
+| CFG-08 | Missing org file | Missing admin config   | Logs and returns `undefined`                                           |
+| CFG-09 | Invalid org depth | `maxMergeDepth: 0`    | Throws `"maxMergeDepth" must be an integer greater than or equal to 1` |
 
 ### Depth resolution (`__tests__/depth-control.test.ts`)
 
@@ -168,9 +174,13 @@ Branch fixture used by all cases:
 | DEP-02 | `MAX_MERGE_DEPTH` set | `{ MAX_MERGE_DEPTH: '5' }` | `5`                       |
 | DEP-03 | `maxMergeDepth` set   | `{ maxMergeDepth: '4' }`   | `4`                       |
 | DEP-04 | Invalid global values | `'0'`, `'2.5'`, `'abc'`    | Throws a validation error |
-| DEP-05 | Repo only             | `(3, undefined)`           | `3`                       |
-| DEP-06 | Global only           | `(undefined, 5)`           | `5`                       |
-| DEP-07 | Global caps repo      | `(10, 5)` / `(2, 5)`       | `5` / `2`                 |
+| DEP-05 | Repo only             | `(3, undefined, undefined)` | `3`                      |
+| DEP-06 | Global only           | `(undefined, undefined, 5)` | `5`                      |
+| DEP-07 | App cap constrains repo | `(10, undefined, 5)` / `(2, undefined, 5)` | `5` / `2`  |
+| DEP-08 | Org only              | `(undefined, 4, undefined)` | `4`                      |
+| DEP-09 | Strictest scope wins  | repo, org, and global values | Lowest configured value |
+| DEP-10 | All scopes unlimited  | `(undefined, undefined, undefined)` | `undefined`       |
+| DEP-11 | Source attribution    | effective, repo, org, and global values | `repo`, `org`, `global`, or `undefined` |
 
 ---
 
@@ -235,24 +245,26 @@ Configuration errors should fail fast with clear messages. These tests ensure:
 
 ### 3. Depth Control Tests
 
-**File:** `__tests__/depth-control.test.ts` — 7 cases, `DEP-01` through `DEP-07`
+**File:** `__tests__/depth-control.test.ts` — 11 cases, `DEP-01` through `DEP-11`
 
-**Purpose:** Validates cascade depth limit resolution between environment variables and
-repo-level config, across two functions:
+**Purpose:** Validates cascade depth limit resolution between environment variables,
+org-level config, and repo-level config, across three functions:
 
 1. `parseGlobalMaxMergeDepth()` — Parses the `MAX_MERGE_DEPTH` / `maxMergeDepth` environment
    variables (`DEP-01` … `DEP-04`)
-2. `resolveEffectiveMaxMergeDepth()` — Resolves which depth limit applies (`DEP-05` … `DEP-07`)
+2. `resolveEffectiveMaxMergeDepth()` — Resolves the strictest configured depth limit (`DEP-05` … `DEP-10`)
+3. `resolveMaxMergeDepthSource()` — Identifies the scope that supplied the effective limit (`DEP-11`)
 
 #### Why This Matters
 
 The depth control system prevents runaway cascades:
 
-- **Global limit** (`MAX_MERGE_DEPTH` env var) — Set by app operator as safety net
-- **Repo-level limit** (`maxMergeDepth` in config) — Set per-repository
-- **Resolution rule:** Global limit is a hard cap; repo can be lower but not higher
+- **App-level limit** (`MAX_MERGE_DEPTH` env var) — Set by app operator as safety net
+- **Org-level limit** (`maxMergeDepth` in the org admin repo config) — Set as org policy/default
+- **Repo-level limit** (`maxMergeDepth` in config) — Set per repository
+- **Resolution rule:** The lowest configured value wins; missing values are unlimited for that scope
 
-These tests ensure the safety mechanism works correctly across both configuration sources.
+These tests ensure the safety mechanism works correctly across all configuration sources.
 
 ---
 

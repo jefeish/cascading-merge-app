@@ -54,8 +54,12 @@ WEBHOOK_SECRET=abc...                      # Your secret
 PRIVATE_KEY_PATH=./private-key.pem         # Downloaded key
 WEBHOOK_PROXY_URL=https://smee.io/abc...   # Smee URL - use for development, local setup only
 
-# Optional global cap for cascade depth
+# Optional app-level cap for cascade depth
 MAX_MERGE_DEPTH=5
+
+# Optional org-level maxMergeDepth policy/default
+ORG_CONFIG_REPO=cascading-merge-admin
+ORG_CONFIG_PATH=.github/cascading-merge.yml
 ```
 
 ### 4. Start (1 min)
@@ -83,10 +87,12 @@ maxMergeDepth: 5 # Optional; omit for unlimited depth
 # after maxMergeDepth is reached
 ```
 
-When both values are set, the global cap is the hard limit:
+Depth values are hard upper bounds. Missing `maxMergeDepth` values are treated
+as unlimited for that scope:
 
-- `.env` `MAX_MERGE_DEPTH` sets the maximum allowed depth globally.
-- Repository `maxMergeDepth` can only lower that value, not exceed it.
+* `.env` `MAX_MERGE_DEPTH` sets the app-level safety cap.
+* Org admin repo `maxMergeDepth` supplies an org-level policy/default.
+* Repository `maxMergeDepth` can only lower org or app values, not exceed them.
 
 ### :warning: Commit to your default branch! The cascading-merge file is always read from the default branch!
 
