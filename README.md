@@ -16,7 +16,7 @@ This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.a
 
 - **Automatic Cascade Merging**: When a PR is merged to a release branch, automatically creates PRs to merge into all subsequent branches
 - **Semantic Version Ordering**: Uses Bitbucket's proven algorithm to correctly order branches with complex versioning (e.g., `1.1-rc1`, `1.2-a`, `2.0`)
-- **Configurable Cascade Depth**: Supports per-repository and org-level `maxMergeDepth` controls with unlimited depth when omitted
+- **Configurable Cascade Depth**: Supports per-repository `maxMergeDepth`, an Org-level `maxMergeDepth` policy loaded from an Admin Repo, and unlimited depth when omitted
 - **App-Level Depth Cap**: Supports optional `MAX_MERGE_DEPTH` as a hard upper bound across repositories and org policy
 - **Visual Reporting**: Optional verbose mode creates GitHub Issues with Mermaid diagrams showing cascade flow
 - **Repository-Scoped Configuration**: Each repository controls its own cascade rules via `.github/cascading-merge.yml`
