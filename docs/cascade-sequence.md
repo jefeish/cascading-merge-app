@@ -66,7 +66,7 @@ sequenceDiagram
                 GitHub-->>App: Merge conflict
                 App->>GitHub: Create issue
                 App->>GitHub: Comment "Cascade stopped"
-                Note over User,GitHub: Conflicted PR stays open; merging it later resumes the cascade
+                Note over User,GitHub: Conflicted PR stays open, merging it later resumes the cascade
             else PR already exists (422)
                 GitHub-->>App: PR already exists
                 App->>GitHub: Comment "Cascade stopped"
