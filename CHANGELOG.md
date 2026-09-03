@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Resumable Cascades**: A cascade interrupted by a merge conflict now continues from where it stopped instead of restarting
+  - Every app-created cascade PR carries hidden state in its description (`<!-- cascading-merge-app:{...} -->`) recording the originating PR, the remaining depth budget, and the depth settings in force when the cascade started
+  - Merging a stalled cascade PR after resolving its conflict resumes the remaining hops; the head merge list is skipped because it was already processed
+  - Resumed runs inherit the recorded `maxMergeDepth` and its source, so a conflict at hop 6 of 10 completes in 10 total hops rather than 16
+  - Comments, merge commit titles, and the verbose report stay attributed to the originating PR
+  - A `Resuming interrupted cascade from PR #N` comment is posted on the originating PR
+
+### Changed
+
+- **Bot PR Detection**: Bot-created cascade PRs are still skipped, but only when they carry no resume state. PRs created before this release have no marker and are skipped exactly as before.
+
+### Known Limitations
+
+- Resuming requires committing the conflict fix directly to the cascade PR's head branch. Repositories that protect release branches against direct pushes need bypass permissions; resolving via a separate patch branch is not yet recognized as a continuation.
+
 ## [2.0.0] - 2026-07-14
 
 ### ⚠️ BREAKING CHANGES

@@ -152,6 +152,24 @@ Branch fixture used by all cases:
 | UC-23 | Originating title only  | title supplied, no source label | `commit_title` is the bare title                                  |
 | UC-24 | No originating metadata | neither supplied                | `pulls.merge` is called without `commit_title` / `commit_message` |
 
+#### Interrupted cascade resume
+
+| ID    | Use case                       | Scenario                                             | Expected outcome                                                          |
+| ----- | ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| UC-30 | Resume state is stamped        | base `release/1.3`, ref `develop`, depth `2`         | Each PR body carries metadata; `remainingDepth` counts down `1` then `0`  |
+| UC-31 | Resume continues downstream    | head `release/1.3`, base `release/2.0`, resume depth `1` | Head list skipped; exactly 1 PR, `release/2.0` → `develop`             |
+| UC-32 | Unlimited depth is recorded    | no depth limit configured                            | Metadata records `remainingDepth: null` and `maxMergeDepth: null`         |
+
+### Cascade metadata (`__tests__/cascade-metadata.test.ts`)
+
+| ID      | Use case                | Input                                          | Expected outcome                                    |
+| ------- | ----------------------- | ---------------------------------------------- | --------------------------------------------------- |
+| META-01 | Round trip              | `buildCascadePrBody` output                    | `parseCascadeMetadata` returns the original object  |
+| META-02 | Human-readable body     | `buildCascadePrBody` output                    | Contains the app notice and `Originating PR #<n>`   |
+| META-03 | No marker               | `null`, `undefined`, `''`, plain text          | Returns `null`                                      |
+| META-04 | Malformed or unsupported | invalid JSON, wrong `version`, missing fields | Returns `null`                                      |
+| META-05 | Unlimited depth         | `remainingDepth` / `maxMergeDepth` are `null`  | Round-trips as `null`                               |
+
 ### Configuration loading (`__tests__/config.test.ts`)
 
 | ID     | Use case         | Input                  | Expected outcome                                                       |

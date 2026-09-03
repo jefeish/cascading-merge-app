@@ -22,9 +22,14 @@ sequenceDiagram
     Note over App: Check if this is a bot-created PR
     App->>App: Is PR created by bot?
 
-    alt Bot PR
+    alt Bot PR without resume state
         Note over App: Skip cascade logic (already processed)
         App->>GitHub: Exit
+    else Bot PR with resume state
+        Note over App: Stalled cascade PR was merged after a conflict fix
+        App->>App: Read remainingDepth and originating PR from PR body
+        App->>GitHub: Comment "Resuming interrupted cascade"
+        Note over App: Continue downstream with the stored depth budget
     else Human PR
         Note over App: Load configuration
         App->>Repo: GET .github/cascading-merge.yml
@@ -47,7 +52,7 @@ sequenceDiagram
         App->>App: Build cascade list
 
         loop Each target branch
-            App->>GitHub: Create cascade PR
+            App->>GitHub: Create cascade PR (stamped with resume state)
             GitHub-->>App: PR created
 
             App->>GitHub: Comment on PR #100
@@ -61,6 +66,7 @@ sequenceDiagram
                 GitHub-->>App: Merge conflict
                 App->>GitHub: Create issue
                 App->>GitHub: Comment "Cascade stopped"
+                Note over User,GitHub: Conflicted PR stays open; merging it later resumes the cascade
             else PR already exists (422)
                 GitHub-->>App: PR already exists
                 App->>GitHub: Comment "Cascade stopped"
@@ -77,14 +83,45 @@ sequenceDiagram
     Note over GitHub: Cascade PRs merge automatically
 
     GitHub->>App: Webhook for bot PR #101
-    App->>App: Detect bot PR
+    App->>App: Detect bot PR, cascade already complete
     Note over App: Skip cascade
 
     GitHub->>App: Webhook for bot PR #102
-    App->>App: Detect bot PR
+    App->>App: Detect bot PR, cascade already complete
     Note over App: Skip cascade
 
     Note over User,Repo: All changes cascaded
+```
+
+## Resuming an Interrupted Cascade
+
+When a cascade PR cannot be auto-merged, it stays open. Merging it after the conflict is resolved continues the run with the depth budget recorded in the PR body.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant GitHub
+    participant App as Cascading Merge App
+
+    Note over App: Hop 6 of 10 hits a merge conflict
+    App->>GitHub: Create conflict issue, comment, stop
+    Note over GitHub: Cascade PR #479 (release/2.0.1-beta -> release/2.0.2) stays open
+
+    User->>GitHub: Commit conflict fix to release/2.0.1-beta
+    User->>GitHub: Merge PR #479
+    GitHub->>App: Webhook: pull_request.closed
+
+    App->>App: Bot PR, but body carries resume state
+    App->>App: Read remainingDepth = 4, originatingPr = 478
+    App->>GitHub: Comment on PR #478 "Resuming interrupted cascade"
+
+    Note over App: Continue from release/2.0.2, head list skipped
+    loop 4 remaining hops
+        App->>GitHub: Create and merge cascade PR
+    end
+
+    App->>GitHub: Comment "Auto-merge was successful"
+    Note over User,GitHub: 10 hops total, not 16
 ```
 
 ## Configuration Example

@@ -34,6 +34,7 @@ const mockOctokit: any = {
 }
 
 // Import the module to test
+import { parseCascadeMetadata } from '../src/lib/cascade-metadata.js'
 import { cascadingBranchMerge } from '../src/lib/cascading-branch-merge.js'
 
 const noCommitsError = () =>
@@ -1275,6 +1276,104 @@ describe('Cascading Branch Merge', () => {
         repo: mockRepo,
         pull_number: 1
       })
+    })
+  })
+
+  describe('Interrupted cascade resume', () => {
+    it('UC-30: Stamps resumable cascade metadata with the remaining depth on each PR', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/1.3',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        2,
+        'ABC-1234 Improve release notes',
+        'octo/my-feature',
+        'repo'
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
+
+      const first = parseCascadeMetadata(
+        mockOctokit.rest.pulls.create.mock.calls[0][0].body
+      )
+      const second = parseCascadeMetadata(
+        mockOctokit.rest.pulls.create.mock.calls[1][0].body
+      )
+
+      expect(first).toMatchObject({
+        originatingPr: mockPullNumber,
+        originatingPrTitle: 'ABC-1234 Improve release notes',
+        originatingPrSource: 'octo/my-feature',
+        sourceBranch: 'release/1.3',
+        targetBranch: 'release/2.0',
+        remainingDepth: 1,
+        maxMergeDepth: 2,
+        maxMergeDepthSource: 'repo',
+        refBranch: 'develop'
+      })
+      expect(second).toMatchObject({
+        sourceBranch: 'release/2.0',
+        targetBranch: 'develop',
+        remainingDepth: 0
+      })
+    })
+
+    it('UC-31: Resumes downstream only, without restarting the depth budget', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'release/1.3',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger,
+        false,
+        2,
+        undefined,
+        undefined,
+        'repo',
+        { remainingDepth: 1, resumedFromPr: 99 }
+      )
+
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          head: 'release/2.0',
+          base: 'develop'
+        })
+      )
+    })
+
+    it('UC-32: Records an unlimited remaining depth as null', async () => {
+      await cascadingBranchMerge(
+        ['release/'],
+        'develop',
+        'my-feature',
+        'release/2.0',
+        mockOwner,
+        mockRepo,
+        mockOctokit,
+        mockPullNumber,
+        mockActor,
+        mockLogger
+      )
+
+      expect(
+        parseCascadeMetadata(
+          mockOctokit.rest.pulls.create.mock.calls[0][0].body
+        )
+      ).toMatchObject({ remainingDepth: null, maxMergeDepth: null })
     })
   })
 })

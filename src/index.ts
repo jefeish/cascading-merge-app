@@ -1,4 +1,5 @@
 import { Probot } from 'probot'
+import { parseCascadeMetadata } from './lib/cascade-metadata.js'
 import { cascadingBranchMerge } from './lib/cascading-branch-merge.js'
 import { loadConfig, loadOrgMaxMergeDepth } from './lib/config.js'
 import {
@@ -44,18 +45,29 @@ export default (app: Probot) => {
     context.log.info(`Head branch: ${pull_request.head.ref}`)
     context.log.info(`Base branch: ${pull_request.base.ref}`)
 
-    // Check if this PR was created by the bot (cascade PR)
-    // Bot PRs should NOT trigger cascade logic because all cascade PRs
-    // were already created by the original PR
+    // Bot-created cascade PRs normally must not re-trigger a cascade, because the
+    // originating PR already created the full chain. The exception is a cascade PR
+    // that stalled on a merge conflict: its body carries the state needed to pick up
+    // where the interrupted cascade left off, without restarting the depth budget.
     const isBotPR =
       pull_request.user.type === 'Bot' ||
       pull_request.title.startsWith('Automatic merge from')
 
-    if (isBotPR) {
+    const resumeMetadata = isBotPR
+      ? parseCascadeMetadata(pull_request.body)
+      : null
+
+    if (isBotPR && !resumeMetadata) {
       context.log.info(
-        `PR #${pull_request.number} is a bot-created cascade PR, skipping cascade logic (all cascade PRs already created by original PR)`
+        `PR #${pull_request.number} is a bot-created cascade PR without cascade metadata, skipping cascade logic`
       )
       return
+    }
+
+    if (resumeMetadata) {
+      context.log.info(
+        `PR #${pull_request.number} is a stalled cascade PR from originating PR #${resumeMetadata.originatingPr}, resuming with remainingDepth=${resumeMetadata.remainingDepth ?? 'unlimited'}`
+      )
     }
 
     try {
@@ -74,20 +86,28 @@ export default (app: Probot) => {
         `Configuration loaded: prefixes=[${config.prefixes.join(', ')}], ref_branch=${config.ref_branch ?? 'none'}, verbose=${config.verbose ?? false}, maxMergeDepth=${config.maxMergeDepth ?? 'unlimited'}`
       )
 
-      const orgMaxMergeDepth = await loadOrgMaxMergeDepth(context)
+      const orgMaxMergeDepth = resumeMetadata
+        ? undefined
+        : await loadOrgMaxMergeDepth(context)
 
-      const effectiveMaxMergeDepth = resolveEffectiveMaxMergeDepth(
-        config.maxMergeDepth,
-        orgMaxMergeDepth,
-        globalMaxMergeDepth
-      )
+      // A resumed cascade inherits the depth settings recorded when it first started,
+      // so reported limits stay consistent across the interruption.
+      const effectiveMaxMergeDepth = resumeMetadata
+        ? (resumeMetadata.maxMergeDepth ?? undefined)
+        : resolveEffectiveMaxMergeDepth(
+            config.maxMergeDepth,
+            orgMaxMergeDepth,
+            globalMaxMergeDepth
+          )
 
-      const maxMergeDepthSource = resolveMaxMergeDepthSource(
-        effectiveMaxMergeDepth,
-        config.maxMergeDepth,
-        orgMaxMergeDepth,
-        globalMaxMergeDepth
-      )
+      const maxMergeDepthSource = resumeMetadata
+        ? resumeMetadata.maxMergeDepthSource
+        : resolveMaxMergeDepthSource(
+            effectiveMaxMergeDepth,
+            config.maxMergeDepth,
+            orgMaxMergeDepth,
+            globalMaxMergeDepth
+          )
 
       context.log.info(
         `Resolved maxMergeDepth: repo=${config.maxMergeDepth ?? 'unlimited'}, org=${orgMaxMergeDepth ?? 'unlimited'}, app=${globalMaxMergeDepth ?? 'unlimited'}, effective=${effectiveMaxMergeDepth ?? 'unlimited'}`
@@ -117,6 +137,15 @@ export default (app: Probot) => {
       // Trigger the cascading merge
       const originatingPrSource = pull_request.head.label.replace(':', '/')
 
+      if (resumeMetadata) {
+        await context.octokit.rest.issues.createComment({
+          owner,
+          repo,
+          issue_number: resumeMetadata.originatingPr,
+          body: `:arrow_forward: Resuming interrupted cascade from PR #${pull_request.number} at __${pull_request.base.ref}__ with ${resumeMetadata.remainingDepth ?? 'unlimited'} remaining merge(s).`
+        })
+      }
+
       await cascadingBranchMerge(
         config.prefixes,
         config.ref_branch,
@@ -125,14 +154,20 @@ export default (app: Probot) => {
         owner,
         repo,
         context.octokit,
-        pull_request.number,
+        resumeMetadata?.originatingPr ?? pull_request.number,
         actor,
         context.log,
         config.verbose ?? false,
         effectiveMaxMergeDepth,
-        pull_request.title,
-        originatingPrSource,
-        maxMergeDepthSource
+        resumeMetadata?.originatingPrTitle ?? pull_request.title,
+        resumeMetadata?.originatingPrSource ?? originatingPrSource,
+        maxMergeDepthSource,
+        resumeMetadata
+          ? {
+              remainingDepth: resumeMetadata.remainingDepth,
+              resumedFromPr: pull_request.number
+            }
+          : undefined
       )
 
       context.log.info(`Cascade merge completed for PR #${pull_request.number}`)

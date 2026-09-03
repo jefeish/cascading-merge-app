@@ -1,5 +1,10 @@
 import { Endpoints } from '@octokit/types'
 import type { Logger } from 'probot'
+import {
+    buildCascadePrBody,
+    CASCADE_METADATA_VERSION,
+    type CascadeResumeState
+} from './cascade-metadata.js'
 import type { MaxMergeDepthSource } from './depth-control.js'
 
 type GetRepositoryBranchesResponse =
@@ -22,6 +27,8 @@ type GetRepositoryBranchesResponse =
  * @param maxMergeDepth Maximum number of cascade hops to process. If omitted, no limit is applied.
  * @param originatingPrTitle Title of the originating PR used to stamp downstream merge commits.
  * @param originatingPrSource Source branch label of originating PR (for example, owner/branch).
+ * @param resume Resume state recovered from a stalled cascade PR. When set, the head merge list is
+ *   skipped and the depth budget continues from where the interrupted cascade stopped.
  */
 export async function cascadingBranchMerge(
   prefixes: string[],
@@ -38,10 +45,13 @@ export async function cascadingBranchMerge(
   maxMergeDepth?: number,
   originatingPrTitle?: string,
   originatingPrSource?: string,
-  maxMergeDepthSource?: MaxMergeDepthSource
+  maxMergeDepthSource?: MaxMergeDepthSource,
+  resume?: CascadeResumeState
 ) {
   let success = true
-  let remainingDepth = maxMergeDepth ?? Number.POSITIVE_INFINITY
+  let remainingDepth = resume
+    ? (resume.remainingDepth ?? Number.POSITIVE_INFINITY)
+    : (maxMergeDepth ?? Number.POSITIVE_INFINITY)
   let stoppedByMaxDepth = false
   let performedFinalRefMergeAtDepthLimit = false
   const hasRefBranch = typeof refBranch === 'string' && refBranch.trim() !== ''
@@ -67,7 +77,8 @@ export async function cascadingBranchMerge(
   let mergeList = []
 
   prefixes.forEach(function (prefix) {
-    if (headBranch.startsWith(prefix))
+    // A resumed cascade continues downstream only; the head list was already processed.
+    if (!resume && headBranch.startsWith(prefix))
       mergeListHead = getBranchMergeOrder(prefix, headBranch, branches, log)
 
     if (baseBranch.startsWith(prefix)) {
@@ -123,7 +134,20 @@ export async function cascadingBranchMerge(
           base: targetBranch,
           head: sourceBranch,
           title: `Automatic merge from ${sourceBranch} -> ${targetBranch}`,
-          body: 'This PR was created automatically by the Cascading Merge App.'
+          body: buildCascadePrBody({
+            version: CASCADE_METADATA_VERSION,
+            originatingPr: pullNumber,
+            originatingPrTitle,
+            originatingPrSource,
+            sourceBranch,
+            targetBranch,
+            remainingDepth: Number.isFinite(remainingDepth)
+              ? remainingDepth
+              : null,
+            maxMergeDepth: maxMergeDepth ?? null,
+            maxMergeDepthSource,
+            refBranch
+          })
         })
       } catch (error: any) {
         const message = error.response?.data?.errors?.[0]?.message || ''

@@ -20,7 +20,8 @@ This GitHub App is based on Bitbucket's [**Cascade Merge**](https://confluence.a
 - **App-Level Depth Cap**: Supports optional `MAX_MERGE_DEPTH` as a hard upper bound across repositories and org policy
 - **Visual Reporting**: Optional verbose mode creates GitHub Issues with Mermaid diagrams showing cascade flow
 - **Repository-Scoped Configuration**: Each repository controls its own cascade rules via `.github/cascading-merge.yml`
-- **Bot PR Detection**: Automatically skips cascade logic for bot-created PRs to prevent duplicate cascades
+- **Resumable Cascades**: A cascade stopped by a merge conflict picks up where it left off when the conflicted PR is merged, keeping the original depth budget instead of restarting it
+- **Bot PR Detection**: Skips cascade logic for bot-created PRs to prevent duplicate cascades, except for stalled cascade PRs that carry resume state
 - **Error Handling**: Gracefully handles merge conflicts, duplicate PRs, and API errors
 - **Issue Tracking**: Automatically creates issues for manual intervention when needed
 
@@ -212,6 +213,41 @@ If any merge fails due to conflicts, it:
 - Stops the cascade at that point
 - Creates an issue assigning the PR author
 - Adds a comment to the original PR
+
+### Resuming After a Merge Conflict
+
+A conflict leaves the failed cascade PR open. Resolve the conflict on that PR and merge it, and the app continues the cascade from there rather than starting over.
+
+Suppose `maxMergeDepth: 10` and the cascade stops at hop 6:
+
+1. The app opens a conflict issue and stops. Cascade PR `release/2.0.1-beta` → `release/2.0.2` stays open.
+2. You resolve the conflict on that PR (commit to its head branch, `release/2.0.1-beta`) and merge it.
+3. The app detects the merge, reads the resume state stored in that PR, and continues with the **4 remaining hops** — not another full 10.
+4. A comment is posted on the originating PR: `▶️ Resuming interrupted cascade from PR #479 at release/2.0.2 with 4 remaining merge(s).`
+
+All comments, merge commit titles, and the verbose report stay attributed to the **originating** PR, so the cascade reads as one continuous run.
+
+#### Where the resume state lives
+
+Each cascade PR the app creates carries a hidden marker in its description:
+
+```text
+This PR was created automatically by the Cascading Merge App.
+
+Originating PR #478
+
+<!-- cascading-merge-app:{"version":1,"originatingPr":478,"sourceBranch":"release/2.0.1-beta","targetBranch":"release/2.0.2","remainingDepth":4,"maxMergeDepth":10,"maxMergeDepthSource":"org","refBranch":"develop"} -->
+```
+
+GitHub hides HTML comments in the rendered view. To inspect it, edit the PR description in the UI, or run `gh pr view <number> --json body -q .body`.
+
+The marker records the depth budget remaining **after** that hop, along with the originating PR details and the depth settings in force when the cascade started. Resumed runs inherit those recorded settings, so reported limits stay consistent even if the repository config changed in the meantime.
+
+> **Note**: Resuming requires committing the conflict fix to the cascade PR's head branch. If that branch is protected against direct pushes, you need bypass permissions. Resolving via a separate patch branch is not yet recognized as a continuation and will start a fresh cascade.
+
+#### Backward compatibility
+
+Cascade PRs created before this feature have no marker. Merging one is skipped exactly as before, so nothing changes for in-flight cascades.
 
 ---
 
