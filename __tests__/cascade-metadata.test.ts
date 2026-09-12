@@ -2,6 +2,7 @@ import {
     buildCascadePrBody,
     CASCADE_METADATA_VERSION,
     parseCascadeMetadata,
+    parseMatchingCascadeMetadata,
     type CascadeMetadata
 } from '../src/lib/cascade-metadata.js'
 
@@ -68,5 +69,44 @@ describe('Cascade metadata', () => {
     expect(parseCascadeMetadata(buildCascadePrBody(unlimited))).toEqual(
       unlimited
     )
+  })
+
+  it('META-06: accepts metadata matching the merged PR branch pair', () => {
+    expect(
+      parseMatchingCascadeMetadata(
+        buildCascadePrBody(metadata),
+        metadata.sourceBranch,
+        metadata.targetBranch
+      )
+    ).toEqual(metadata)
+  })
+
+  it('META-07: rejects metadata for a different merged PR branch pair', () => {
+    const body = buildCascadePrBody(metadata)
+
+    expect(
+      parseMatchingCascadeMetadata(
+        body,
+        'release/2.0.1-alpha',
+        metadata.targetBranch
+      )
+    ).toBeNull()
+    expect(
+      parseMatchingCascadeMetadata(
+        body,
+        metadata.sourceBranch,
+        'development'
+      )
+    ).toBeNull()
+  })
+
+  it('META-08: returns null when a merged PR has no valid metadata', () => {
+    expect(
+      parseMatchingCascadeMetadata(
+        'Human-authored pull request body',
+        metadata.sourceBranch,
+        metadata.targetBranch
+      )
+    ).toBeNull()
   })
 })

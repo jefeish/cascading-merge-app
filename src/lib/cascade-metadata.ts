@@ -6,8 +6,8 @@ const MARKER_REGEX = /<!--\s*cascading-merge-app:(\{[\s\S]*?\})\s*-->/
 export const CASCADE_METADATA_VERSION = 1
 
 /**
- * State embedded in every app-created cascade PR so an interrupted cascade can
- * be resumed from the exact hop it stopped at, with the depth budget intact.
+ * State embedded in an app-created cascade PR after its automatic merge stalls,
+ * allowing the cascade to resume from that exact hop with its depth budget intact.
  */
 export interface CascadeMetadata {
   version: number
@@ -28,17 +28,27 @@ export interface CascadeResumeState {
   resumedFromPr: number
 }
 
+export function appendCascadeMetadata(
+  body: string | null | undefined,
+  metadata: CascadeMetadata
+): string {
+  const marker = `${MARKER_PREFIX}${JSON.stringify(metadata)} -->`
+  const normalizedBody = body?.trim()
+
+  return normalizedBody ? `${normalizedBody}\n\n${marker}` : marker
+}
+
 /**
  * Builds a cascade PR body with a hidden, machine-readable metadata marker.
  */
 export function buildCascadePrBody(metadata: CascadeMetadata): string {
-  return [
+  const body = [
     'This PR was created automatically by the Cascading Merge App.',
     '',
-    `Originating PR #${metadata.originatingPr}`,
-    '',
-    `${MARKER_PREFIX}${JSON.stringify(metadata)} -->`
+    `Originating PR #${metadata.originatingPr}`
   ].join('\n')
+
+  return appendCascadeMetadata(body, metadata)
 }
 
 /**
@@ -75,7 +85,9 @@ export function parseCascadeMetadata(
   }
 
   const remainingDepth =
-    typeof candidate.remainingDepth === 'number' ? candidate.remainingDepth : null
+    typeof candidate.remainingDepth === 'number'
+      ? candidate.remainingDepth
+      : null
   const maxMergeDepth =
     typeof candidate.maxMergeDepth === 'number' ? candidate.maxMergeDepth : null
 
@@ -91,4 +103,21 @@ export function parseCascadeMetadata(
     maxMergeDepthSource: candidate.maxMergeDepthSource,
     refBranch: candidate.refBranch
   }
+}
+
+export function parseMatchingCascadeMetadata(
+  body: string | null | undefined,
+  sourceBranch: string,
+  targetBranch: string
+): CascadeMetadata | null {
+  const metadata = parseCascadeMetadata(body)
+
+  if (
+    metadata?.sourceBranch !== sourceBranch ||
+    metadata.targetBranch !== targetBranch
+  ) {
+    return null
+  }
+
+  return metadata
 }

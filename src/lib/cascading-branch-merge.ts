@@ -1,9 +1,10 @@
 import { Endpoints } from '@octokit/types'
 import type { Logger } from 'probot'
 import {
-    buildCascadePrBody,
-    CASCADE_METADATA_VERSION,
-    type CascadeResumeState
+  appendCascadeMetadata,
+  buildCascadePrBody,
+  CASCADE_METADATA_VERSION,
+  type CascadeResumeState
 } from './cascade-metadata.js'
 import type { MaxMergeDepthSource } from './depth-control.js'
 
@@ -84,7 +85,11 @@ export async function cascadingBranchMerge(
     if (baseBranch.startsWith(prefix)) {
       mergeListBase = getBranchMergeOrder(prefix, baseBranch, branches, log)
 
-      if (hasRefBranch && refBranch && mergeListBase[mergeListBase.length - 1] !== refBranch) {
+      if (
+        hasRefBranch &&
+        refBranch &&
+        mergeListBase[mergeListBase.length - 1] !== refBranch
+      ) {
         mergeListBase.push(refBranch)
       }
     }
@@ -134,20 +139,7 @@ export async function cascadingBranchMerge(
           base: targetBranch,
           head: sourceBranch,
           title: `Automatic merge from ${sourceBranch} -> ${targetBranch}`,
-          body: buildCascadePrBody({
-            version: CASCADE_METADATA_VERSION,
-            originatingPr: pullNumber,
-            originatingPrTitle,
-            originatingPrSource,
-            sourceBranch,
-            targetBranch,
-            remainingDepth: Number.isFinite(remainingDepth)
-              ? remainingDepth
-              : null,
-            maxMergeDepth: maxMergeDepth ?? null,
-            maxMergeDepthSource,
-            refBranch
-          })
+          body: `This PR was created automatically by the Cascading Merge App.\n\nOriginating PR #${pullNumber}`
         })
       } catch (error: any) {
         const message = error.response?.data?.errors?.[0]?.message || ''
@@ -181,9 +173,39 @@ export async function cascadingBranchMerge(
 
             continue
           } else if (message.startsWith('A pull request already exists')) {
-            log.warn(
-              `PR already exists for ${sourceBranch} -> ${targetBranch}`
-            )
+            log.warn(`PR already exists for ${sourceBranch} -> ${targetBranch}`)
+
+            const existingPulls = await octokit.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head: `${owner}:${sourceBranch}`,
+              base: targetBranch,
+              per_page: 1
+            })
+            const existingPull = existingPulls.data[0]
+
+            if (existingPull) {
+              await octokit.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: existingPull.number,
+                body: appendCascadeMetadata(existingPull.body, {
+                  version: CASCADE_METADATA_VERSION,
+                  originatingPr: pullNumber,
+                  originatingPrTitle,
+                  originatingPrSource,
+                  sourceBranch,
+                  targetBranch,
+                  remainingDepth: Number.isFinite(remainingDepth)
+                    ? remainingDepth
+                    : null,
+                  maxMergeDepth: maxMergeDepth ?? null,
+                  maxMergeDepthSource,
+                  refBranch
+                })
+              })
+            }
 
             await octokit.rest.issues.createComment({
               owner,
@@ -257,6 +279,26 @@ export async function cascadingBranchMerge(
         log.error(error)
 
         if (error.status === 405) {
+          await octokit.rest.pulls.update({
+            owner,
+            repo,
+            pull_number: res!.data.number,
+            body: buildCascadePrBody({
+              version: CASCADE_METADATA_VERSION,
+              originatingPr: pullNumber,
+              originatingPrTitle,
+              originatingPrSource,
+              sourceBranch,
+              targetBranch,
+              remainingDepth: Number.isFinite(remainingDepth)
+                ? remainingDepth
+                : null,
+              maxMergeDepth: maxMergeDepth ?? null,
+              maxMergeDepthSource,
+              refBranch
+            })
+          })
+
           // Comment on the original PR, noting that the cascading failed
           const issue = await octokit.rest.issues.create({
             owner,
@@ -332,9 +374,8 @@ export async function cascadingBranchMerge(
 
   // If verbose mode is enabled, create a GitHub Issue with the cascade report
   if (verbose && createdPRs.length > 0) {
-    const maxMergeDepthSourceLabel = getMaxMergeDepthSourceLabel(
-      maxMergeDepthSource
-    )
+    const maxMergeDepthSourceLabel =
+      getMaxMergeDepthSourceLabel(maxMergeDepthSource)
     const depthLimitNote =
       stoppedByMaxDepth && maxMergeDepth !== undefined
         ? maxMergeDepthSourceLabel

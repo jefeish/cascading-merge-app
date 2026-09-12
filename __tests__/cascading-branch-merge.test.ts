@@ -25,6 +25,8 @@ const mockOctokit: any = {
     },
     pulls: {
       create: jest.fn(),
+      list: jest.fn(),
+      update: jest.fn(),
       merge: jest.fn()
     },
     repos: {
@@ -84,6 +86,8 @@ describe('Cascading Branch Merge', () => {
     mockOctokit.rest.pulls.create.mockResolvedValue({
       data: { number: 1 }
     } as Endpoints['POST /repos/{owner}/{repo}/pulls']['response'])
+
+    mockOctokit.rest.pulls.list.mockResolvedValue({ data: [] })
 
     mockOctokit.rest.issues.create.mockResolvedValue({
       data: { number: 1 }
@@ -533,6 +537,14 @@ describe('Cascading Branch Merge', () => {
       })
 
       mockOctokit.rest.pulls.create.mockRejectedValue(error)
+      mockOctokit.rest.pulls.list.mockResolvedValue({
+        data: [
+          {
+            number: 42,
+            body: 'Pre-existing release promotion PR.'
+          }
+        ]
+      })
 
       await cascadingBranchMerge(
         ['release/'],
@@ -548,6 +560,28 @@ describe('Cascading Branch Merge', () => {
       )
 
       expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.pulls.list).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        state: 'open',
+        head: `${mockOwner}:release/1.0`,
+        base: 'release/1.1',
+        per_page: 1
+      })
+
+      const update = mockOctokit.rest.pulls.update.mock.calls[0][0]
+      expect(update).toMatchObject({
+        owner: mockOwner,
+        repo: mockRepo,
+        pull_number: 42
+      })
+      expect(update.body).toContain('Pre-existing release promotion PR.')
+      expect(parseCascadeMetadata(update.body)).toMatchObject({
+        originatingPr: mockPullNumber,
+        sourceBranch: 'release/1.0',
+        targetBranch: 'release/1.1',
+        remainingDepth: null
+      })
 
       expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
         owner: mockOwner,
@@ -709,6 +743,21 @@ describe('Cascading Branch Merge', () => {
       expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
 
       expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledTimes(1)
+
+      const update = mockOctokit.rest.pulls.update.mock.calls[0][0]
+      expect(update).toMatchObject({
+        owner: mockOwner,
+        repo: mockRepo,
+        pull_number: 13
+      })
+      expect(parseCascadeMetadata(update.body)).toMatchObject({
+        originatingPr: mockPullNumber,
+        sourceBranch: 'release/2.0',
+        targetBranch: 'develop',
+        remainingDepth: null,
+        maxMergeDepth: null,
+        refBranch: 'develop'
+      })
     })
 
     it('UC-12: Breaks if an unhandled error occurs merging a PR', async () => {
@@ -1280,7 +1329,7 @@ describe('Cascading Branch Merge', () => {
   })
 
   describe('Interrupted cascade resume', () => {
-    it('UC-30: Stamps resumable cascade metadata with the remaining depth on each PR', async () => {
+    it('UC-30: Does not mark successfully merged cascade PRs as resumable', async () => {
       await cascadingBranchMerge(
         ['release/'],
         'develop',
@@ -1301,29 +1350,17 @@ describe('Cascading Branch Merge', () => {
 
       expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
 
-      const first = parseCascadeMetadata(
-        mockOctokit.rest.pulls.create.mock.calls[0][0].body
-      )
-      const second = parseCascadeMetadata(
-        mockOctokit.rest.pulls.create.mock.calls[1][0].body
-      )
-
-      expect(first).toMatchObject({
-        originatingPr: mockPullNumber,
-        originatingPrTitle: 'ABC-1234 Improve release notes',
-        originatingPrSource: 'octo/my-feature',
-        sourceBranch: 'release/1.3',
-        targetBranch: 'release/2.0',
-        remainingDepth: 1,
-        maxMergeDepth: 2,
-        maxMergeDepthSource: 'repo',
-        refBranch: 'develop'
-      })
-      expect(second).toMatchObject({
-        sourceBranch: 'release/2.0',
-        targetBranch: 'develop',
-        remainingDepth: 0
-      })
+      expect(
+        parseCascadeMetadata(
+          mockOctokit.rest.pulls.create.mock.calls[0][0].body
+        )
+      ).toBeNull()
+      expect(
+        parseCascadeMetadata(
+          mockOctokit.rest.pulls.create.mock.calls[1][0].body
+        )
+      ).toBeNull()
+      expect(mockOctokit.rest.pulls.update).not.toHaveBeenCalled()
     })
 
     it('UC-31: Resumes downstream only, without restarting the depth budget', async () => {
@@ -1355,7 +1392,22 @@ describe('Cascading Branch Merge', () => {
       )
     })
 
-    it('UC-32: Records an unlimited remaining depth as null', async () => {
+    it('UC-32: Records an unlimited remaining depth as null after a conflict', async () => {
+      const error = new RequestError('Validation Failed', 405, {
+        request: {
+          method: 'POST',
+          url: 'https://api.github.com/merge',
+          headers: { authorization: 'token secret13' }
+        },
+        response: {
+          status: 405,
+          url: 'https://api.github.com/merge',
+          headers: { 'x-github-request-id': '1:2:3:4' },
+          data: { message: 'Merge conflict' }
+        }
+      })
+      mockOctokit.rest.pulls.merge.mockRejectedValue(error)
+
       await cascadingBranchMerge(
         ['release/'],
         'develop',
@@ -1371,7 +1423,7 @@ describe('Cascading Branch Merge', () => {
 
       expect(
         parseCascadeMetadata(
-          mockOctokit.rest.pulls.create.mock.calls[0][0].body
+          mockOctokit.rest.pulls.update.mock.calls[0][0].body
         )
       ).toMatchObject({ remainingDepth: null, maxMergeDepth: null })
     })

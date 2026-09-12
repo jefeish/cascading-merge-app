@@ -1,5 +1,5 @@
 import { Probot } from 'probot'
-import { parseCascadeMetadata } from './lib/cascade-metadata.js'
+import { parseMatchingCascadeMetadata } from './lib/cascade-metadata.js'
 import { cascadingBranchMerge } from './lib/cascading-branch-merge.js'
 import { loadConfig, loadOrgMaxMergeDepth } from './lib/config.js'
 import {
@@ -46,16 +46,18 @@ export default (app: Probot) => {
     context.log.info(`Base branch: ${pull_request.base.ref}`)
 
     // Bot-created cascade PRs normally must not re-trigger a cascade, because the
-    // originating PR already created the full chain. The exception is a cascade PR
-    // that stalled on a merge conflict: its body carries the state needed to pick up
-    // where the interrupted cascade left off, without restarting the depth budget.
+    // originating PR already created the full chain. A PR carrying matching cascade
+    // metadata resumes an interrupted conflict or existing-PR collision without
+    // restarting the depth budget.
     const isBotPR =
       pull_request.user.type === 'Bot' ||
       pull_request.title.startsWith('Automatic merge from')
 
-    const resumeMetadata = isBotPR
-      ? parseCascadeMetadata(pull_request.body)
-      : null
+    const resumeMetadata = parseMatchingCascadeMetadata(
+      pull_request.body,
+      pull_request.head.ref,
+      pull_request.base.ref
+    )
 
     if (isBotPR && !resumeMetadata) {
       context.log.info(

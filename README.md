@@ -117,12 +117,12 @@ See the complete configuration example with documentation: [`.github/cascading-m
 
 ### Configuration Options
 
-| Option          | Required | Default           | Description                                                         |
-| --------------- | -------- | ----------------- | ------------------------------------------------------------------- |
-| `prefixes`      | Yes      | None (required)   | Array of branch prefixes to include in cascades                     |
-| `ref_branch`    | No       | No final merge    | Final branch in the cascade sequence                                |
-| `verbose`       | No       | `false`           | Create GitHub Issues with Mermaid diagrams visualizing cascade flow |
-| `maxMergeDepth` | No       | Unlimited (omit)  | Maximum number of cascade merge hops per originating PR; if `ref_branch` is set, one final merge to `ref_branch` is still attempted |
+| Option          | Required | Default          | Description                                                                                                                         |
+| --------------- | -------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `prefixes`      | Yes      | None (required)  | Array of branch prefixes to include in cascades                                                                                     |
+| `ref_branch`    | No       | No final merge   | Final branch in the cascade sequence                                                                                                |
+| `verbose`       | No       | `false`          | Create GitHub Issues with Mermaid diagrams visualizing cascade flow                                                                 |
+| `maxMergeDepth` | No       | Unlimited (omit) | Maximum number of cascade merge hops per originating PR; if `ref_branch` is set, one final merge to `ref_branch` is still attempted |
 
 ### Org And App Depth Caps
 
@@ -166,10 +166,10 @@ files use the existing camelCase application setting (`maxMergeDepth`).
 Depth values are hard upper bounds. Missing `maxMergeDepth` values are treated
 as unlimited for that scope:
 
-* If repository `maxMergeDepth` is lower, the lower repository value is used.
-* If repository `maxMergeDepth` is omitted, org-level depth is used when configured.
-* If repository and org-level depth are omitted, `MAX_MERGE_DEPTH` is used when configured.
-* If all three values are omitted, cascade depth is unlimited.
+- If repository `maxMergeDepth` is lower, the lower repository value is used.
+- If repository `maxMergeDepth` is omitted, org-level depth is used when configured.
+- If repository and org-level depth are omitted, `MAX_MERGE_DEPTH` is used when configured.
+- If all three values are omitted, cascade depth is unlimited.
 
 Effective depth rule:
 
@@ -229,7 +229,8 @@ All comments, merge commit titles, and the verbose report stay attributed to the
 
 #### Where the resume state lives
 
-Each cascade PR the app creates carries a hidden marker in its description:
+When an automatic merge fails because of a conflict, the app adds a hidden marker
+to that cascade PR's description:
 
 ```text
 This PR was created automatically by the Cascading Merge App.
