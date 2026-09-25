@@ -27,10 +27,17 @@ const mockOctokit: any = {
       create: jest.fn(),
       list: jest.fn(),
       update: jest.fn(),
+      get: jest.fn(),
       merge: jest.fn()
     },
     repos: {
-      listBranches: jest.fn()
+      listBranches: jest.fn(),
+      getBranch: jest.fn()
+    },
+    git: {
+      getRef: jest.fn(),
+      createRef: jest.fn(),
+      deleteRef: jest.fn()
     }
   }
 }
@@ -88,6 +95,19 @@ describe('Cascading Branch Merge', () => {
     } as Endpoints['POST /repos/{owner}/{repo}/pulls']['response'])
 
     mockOctokit.rest.pulls.list.mockResolvedValue({ data: [] })
+    mockOctokit.rest.pulls.get.mockResolvedValue({
+      data: { mergeable: false, mergeable_state: 'dirty' }
+    })
+    mockOctokit.rest.repos.getBranch.mockImplementation(({ branch }: any) =>
+      Promise.resolve({
+        data: {
+          commit: {
+            sha: branch === 'release/2.0' ? 'source1234567' : 'target1234567'
+          }
+        }
+      })
+    )
+    mockOctokit.rest.git.getRef.mockRejectedValue({ status: 404 })
 
     mockOctokit.rest.issues.create.mockResolvedValue({
       data: { number: 1 }
@@ -730,7 +750,7 @@ describe('Cascading Branch Merge', () => {
         repo: mockRepo,
         issue_number: mockPullNumber,
         body: expect.stringMatching(
-          /.*Could not auto merge PR #13 due to merge conflicts.*/
+          /Could not auto merge PR #13 due to merge conflicts.[\s\S]*To resolve the conflict:[\s\S]*1\. Check out `cascade-fix\/13-[^`]+`\.[\s\S]*2\. Merge `release\/2\.0` into the repair branch.[\s\S]*After this PR merges, the app will retry PR #13 and resume the original cascade./
         )
       })
       expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
@@ -740,7 +760,7 @@ describe('Cascading Branch Merge', () => {
         body: ':bangbang: Auto-merge action did not complete successfully. Please review issues.'
       })
 
-      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(1)
+      expect(mockOctokit.rest.pulls.create).toHaveBeenCalledTimes(2)
 
       expect(mockOctokit.rest.pulls.merge).toHaveBeenCalledTimes(1)
 
@@ -758,6 +778,19 @@ describe('Cascading Branch Merge', () => {
         maxMergeDepth: null,
         refBranch: 'develop'
       })
+      expect(mockOctokit.rest.git.createRef).toHaveBeenCalledWith({
+        owner: mockOwner,
+        repo: mockRepo,
+        ref: 'refs/heads/cascade-fix/13-source1-target1',
+        sha: 'target1234567'
+      })
+      expect(mockOctokit.rest.pulls.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          head: 'cascade-fix/13-source1-target1',
+          base: 'release/2.0',
+          draft: true
+        })
+      )
     })
 
     it('UC-12: Breaks if an unhandled error occurs merging a PR', async () => {

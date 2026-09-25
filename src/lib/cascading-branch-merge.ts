@@ -3,9 +3,15 @@ import type { Logger } from 'probot'
 import {
   appendCascadeMetadata,
   buildCascadePrBody,
+  buildRepairInstructions,
   CASCADE_METADATA_VERSION,
+  type CascadeMetadata,
   type CascadeResumeState
 } from './cascade-metadata.js'
+import {
+  confirmPullRequestConflict,
+  createOrReuseConflictRepair
+} from './conflict-repair.js'
 import type { MaxMergeDepthSource } from './depth-control.js'
 
 type GetRepositoryBranchesResponse =
@@ -192,6 +198,7 @@ export async function cascadingBranchMerge(
                 pull_number: existingPull.number,
                 body: appendCascadeMetadata(existingPull.body, {
                   version: CASCADE_METADATA_VERSION,
+                  kind: 'cascade',
                   originatingPr: pullNumber,
                   originatingPrTitle,
                   originatingPrSource,
@@ -279,24 +286,43 @@ export async function cascadingBranchMerge(
         log.error(error)
 
         if (error.status === 405) {
+          await confirmPullRequestConflict(
+            owner,
+            repo,
+            octokit,
+            res!.data.number
+          )
+
+          const continuation: CascadeMetadata = {
+            version: CASCADE_METADATA_VERSION,
+            kind: 'cascade',
+            originatingPr: pullNumber,
+            originatingPrTitle,
+            originatingPrSource,
+            sourceBranch,
+            targetBranch,
+            remainingDepth: Number.isFinite(remainingDepth)
+              ? remainingDepth
+              : null,
+            maxMergeDepth: maxMergeDepth ?? null,
+            maxMergeDepthSource,
+            refBranch
+          }
+
           await octokit.rest.pulls.update({
             owner,
             repo,
             pull_number: res!.data.number,
-            body: buildCascadePrBody({
-              version: CASCADE_METADATA_VERSION,
-              originatingPr: pullNumber,
-              originatingPrTitle,
-              originatingPrSource,
-              sourceBranch,
-              targetBranch,
-              remainingDepth: Number.isFinite(remainingDepth)
-                ? remainingDepth
-                : null,
-              maxMergeDepth: maxMergeDepth ?? null,
-              maxMergeDepthSource,
-              refBranch
-            })
+            body: buildCascadePrBody(continuation)
+          })
+
+          const repair = await createOrReuseConflictRepair({
+            owner,
+            repo,
+            octokit,
+            log,
+            stalledPr: res!.data.number,
+            continuation
           })
 
           // Comment on the original PR, noting that the cascading failed
@@ -306,14 +332,24 @@ export async function cascadingBranchMerge(
             assignees: [actor],
             title:
               ':heavy_exclamation_mark: Merge Conflict with Cascading Auto-Merge',
-            body: `Issue with cascading auto-merge, please try to resolve the merge conflicts.\n\nPR #${res!.data.number}.\n\n**Cascading Auto-Merge has been stopped!**\n\nOriginating PR #${pullNumber}`
+            body: `Cascade PR #${res!.data.number} could not be merged automatically.\n\nResolve the conflict through draft repair PR #${repair.pullNumber}. Direct updates to protected branch \`${sourceBranch}\` are not required.\n\n**Cascading Auto-Merge has been stopped until the repair is merged.**\n\nOriginating PR #${pullNumber}`
           })
 
           await octokit.rest.issues.createComment({
             owner,
             repo,
             issue_number: pullNumber,
-            body: `:heavy_exclamation_mark: Could not auto merge PR #${res!.data.number} due to merge conflicts.\n\nCreated an issue #${issue.data.number}.\n\nCan't continue auto-merge action.`
+            body: [
+              `:heavy_exclamation_mark: Could not auto merge PR #${res!.data.number} due to merge conflicts.`,
+              '',
+              `Created draft repair PR #${repair.pullNumber} and issue #${issue.data.number}.`,
+              '',
+              buildRepairInstructions({
+                stalledPr: res!.data.number,
+                repairBranch: repair.branch,
+                protectedSourceBranch: sourceBranch
+              })
+            ].join('\n')
           })
 
           success = false

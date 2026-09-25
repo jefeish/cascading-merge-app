@@ -221,11 +221,38 @@ A conflict leaves the failed cascade PR open. Resolve the conflict on that PR an
 Suppose `maxMergeDepth: 10` and the cascade stops at hop 6:
 
 1. The app opens a conflict issue and stops. Cascade PR `release/2.0.1-beta` → `release/2.0.2` stays open.
-2. You resolve the conflict on that PR (commit to its head branch, `release/2.0.1-beta`) and merge it.
-3. The app detects the merge, reads the resume state stored in that PR, and continues with the **4 remaining hops** — not another full 10.
-4. A comment is posted on the originating PR: `▶️ Resuming interrupted cascade from PR #479 at release/2.0.2 with 4 remaining merge(s).`
+2. The app creates a draft `cascade-fix/*` PR into protected branch `release/2.0.1-beta`.
+3. You check out the repair branch, merge `release/2.0.1-beta` into it, resolve the conflict, push, and merge the repair PR.
+4. The app retries and merges the original cascade PR.
+5. The original cascade PR's webhook reads its resume state and continues with the **4 remaining hops**, not another full 10.
+6. A comment is posted on the originating PR: `▶️ Resuming interrupted cascade from PR #479 at release/2.0.2 with 4 remaining merge(s).`
 
 All comments, merge commit titles, and the verbose report stay attributed to the **originating** PR, so the cascade reads as one continuous run.
+
+#### Protected branch conflict repair
+
+The repair branch starts at the stalled PR's target branch. This gives GitHub a
+real diff for the draft PR immediately. A branch created from the protected
+source would initially be identical to its base, and GitHub would reject the PR
+with "No commits between."
+
+Use the instructions in the generated draft repair PR:
+
+```bash
+git fetch origin
+git switch cascade-fix/<generated-name>
+git merge origin/<protected-source-branch>
+# Resolve conflicts and commit the result.
+git push origin HEAD
+```
+
+Mark the repair PR ready, complete its required reviews and checks, and merge
+it. The repair PR is a control step, not a new cascade. It does not consume
+`maxMergeDepth`; the stalled cascade PR remains the only owner of the remaining
+depth.
+
+If the target branch moves and the stalled PR still conflicts, the app creates
+or reuses another draft repair PR for the latest source and target commits.
 
 #### Where the resume state lives
 
@@ -237,18 +264,17 @@ This PR was created automatically by the Cascading Merge App.
 
 Originating PR #478
 
-<!-- cascading-merge-app:{"version":1,"originatingPr":478,"sourceBranch":"release/2.0.1-beta","targetBranch":"release/2.0.2","remainingDepth":4,"maxMergeDepth":10,"maxMergeDepthSource":"org","refBranch":"develop"} -->
+<!-- cascading-merge-app:{"version":2,"kind":"cascade","originatingPr":478,"sourceBranch":"release/2.0.1-beta","targetBranch":"release/2.0.2","remainingDepth":4,"maxMergeDepth":10,"maxMergeDepthSource":"org","refBranch":"develop"} -->
 ```
 
 GitHub hides HTML comments in the rendered view. To inspect it, edit the PR description in the UI, or run `gh pr view <number> --json body -q .body`.
 
 The marker records the depth budget remaining **after** that hop, along with the originating PR details and the depth settings in force when the cascade started. Resumed runs inherit those recorded settings, so reported limits stay consistent even if the repository config changed in the meantime.
 
-> **Note**: Resuming requires committing the conflict fix to the cascade PR's head branch. If that branch is protected against direct pushes, you need bypass permissions. Resolving via a separate patch branch is not yet recognized as a continuation and will start a fresh cascade.
-
 #### Backward compatibility
 
-Cascade PRs created before this feature have no marker. Merging one is skipped exactly as before, so nothing changes for in-flight cascades.
+Version 1 continuation markers remain readable. Cascade PRs created before
+continuation metadata existed have no marker and are skipped exactly as before.
 
 ---
 

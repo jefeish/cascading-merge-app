@@ -104,7 +104,7 @@ Branch fixture used by all cases:
 | ----- | -------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | UC-04 | Final ref merge after the limit        | base `release/1.0`, ref `develop`, depth `2` | 2 normal hops, then a forced 3rd PR into `develop`; "Performed a final merge" comment    |
 | UC-05 | Limit lands on the last release branch | base `release/1.3`, ref `develop`, depth `1` | Forced final PR `release/2.0` → `develop` still happens (regression: previously skipped) |
-| UC-06 | App depth cap attribution              | verbose on, depth `2`, source `global`       | Report notes `maxMergeDepth reached (app-level cap: 2)`                                 |
+| UC-06 | App depth cap attribution              | verbose on, depth `2`, source `global`       | Report notes `maxMergeDepth reached (app-level cap: 2)`                                  |
 | UC-07 | No `ref_branch` configured             | ref `undefined`, no depth limit              | Cascade ends at the last release branch; no final merge                                  |
 
 #### Failure handling
@@ -154,51 +154,70 @@ Branch fixture used by all cases:
 
 #### Interrupted cascade resume
 
-| ID    | Use case                       | Scenario                                             | Expected outcome                                                          |
-| ----- | ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| UC-30 | Resume state is stamped        | base `release/1.3`, ref `develop`, depth `2`         | Each PR body carries metadata; `remainingDepth` counts down `1` then `0`  |
-| UC-31 | Resume continues downstream    | head `release/1.3`, base `release/2.0`, resume depth `1` | Head list skipped; exactly 1 PR, `release/2.0` → `develop`             |
-| UC-32 | Unlimited depth is recorded    | no depth limit configured                            | Metadata records `remainingDepth: null` and `maxMergeDepth: null`         |
+| ID        | Use case                    | Scenario                                                 | Expected outcome                                                         |
+| --------- | --------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------ |
+| UC-30     | Resume state is stamped     | base `release/1.3`, ref `develop`, depth `2`             | Each PR body carries metadata; `remainingDepth` counts down `1` then `0` |
+| UC-31     | Resume continues downstream | head `release/1.3`, base `release/2.0`, resume depth `1` | Head list skipped; exactly 1 PR, `release/2.0` → `develop`               |
+| UC-32     | Unlimited depth is recorded | no depth limit configured                                | Metadata records `remainingDepth: null` and `maxMergeDepth: null`        |
+| REPAIR-01 | Protected source conflict   | cascade PR cannot merge                                  | Target-based repair branch and draft PR are created                      |
+| REPAIR-02 | Existing repair attempt     | same stalled PR and branch heads                         | Existing open repair PR is reused                                        |
+| REPAIR-03 | Repair merged               | valid app repair PR                                      | Original stalled PR is retried; no fresh cascade starts                  |
+| REPAIR-04 | Conflict remains            | stalled PR still reports `dirty` after repair            | Another repair attempt is created for the latest branch state            |
+| REPAIR-05 | Invalid repair reference    | missing or mismatched stalled continuation metadata      | Stalled PR is not merged                                                 |
 
 ### Cascade metadata (`__tests__/cascade-metadata.test.ts`)
 
-| ID      | Use case                | Input                                          | Expected outcome                                    |
-| ------- | ----------------------- | ---------------------------------------------- | --------------------------------------------------- |
-| META-01 | Round trip              | `buildCascadePrBody` output                    | `parseCascadeMetadata` returns the original object  |
-| META-02 | Human-readable body     | `buildCascadePrBody` output                    | Contains the app notice and `Originating PR #<n>`   |
-| META-03 | No marker               | `null`, `undefined`, `''`, plain text          | Returns `null`                                      |
-| META-04 | Malformed or unsupported | invalid JSON, wrong `version`, missing fields | Returns `null`                                      |
-| META-05 | Unlimited depth         | `remainingDepth` / `maxMergeDepth` are `null`  | Round-trips as `null`                               |
+| ID      | Use case                 | Input                                         | Expected outcome                                   |
+| ------- | ------------------------ | --------------------------------------------- | -------------------------------------------------- |
+| META-01 | Round trip               | `buildCascadePrBody` output                   | `parseCascadeMetadata` returns the original object |
+| META-02 | Human-readable body      | `buildCascadePrBody` output                   | Contains the app notice and `Originating PR #<n>`  |
+| META-03 | No marker                | `null`, `undefined`, `''`, plain text         | Returns `null`                                     |
+| META-04 | Malformed or unsupported | invalid JSON, wrong `version`, missing fields | Returns `null`                                     |
+| META-05 | Unlimited depth          | `remainingDepth` / `maxMergeDepth` are `null` | Round-trips as `null`                              |
+| META-09 | Legacy continuation      | version 1 marker                              | Normalizes to current continuation metadata        |
+| META-10 | Existing marker          | body already contains app metadata            | Replaces the old marker                            |
+| META-11 | Repair round trip        | repair body and metadata                      | Parses repair state without a depth budget         |
+| META-12 | Repair branch pair       | expected and mismatched repair head/base      | Accepts only the expected branch pair              |
+| META-13 | Different operation      | body contains metadata for another cascade    | Rejects the replacement instead of losing state    |
+
+### Pull request routing (`__tests__/pull-request-routing.test.ts`)
+
+| ID       | Use case                  | Expected outcome                                      |
+| -------- | ------------------------- | ----------------------------------------------------- |
+| ROUTE-01 | Trusted app repair        | Routes to repair handling before cascade startup      |
+| ROUTE-02 | Human-authored repair tag | Processes as a normal PR and does not retry a cascade |
+| ROUTE-03 | Stalled cascade PR        | Routes to continuation handling                       |
+| ROUTE-04 | Ordinary bot PR           | Skips duplicate cascade handling                      |
 
 ### Configuration loading (`__tests__/config.test.ts`)
 
-| ID     | Use case         | Input                  | Expected outcome                                                       |
-| ------ | ---------------- | ---------------------- | ---------------------------------------------------------------------- |
-| CFG-01 | Depth omitted    | `prefixes: [release/]` | `maxMergeDepth` is `undefined` (unlimited)                             |
-| CFG-02 | Depth provided   | `maxMergeDepth: 3`     | Parsed as `3`                                                          |
-| CFG-03 | Invalid depth    | `maxMergeDepth: 0`     | Throws `"maxMergeDepth" must be an integer greater than or equal to 1` |
-| CFG-04 | Blank ref branch | `ref_branch: '   '`    | Throws `"ref_branch" must be a non-empty string when provided`         |
-| CFG-05 | Org env absent   | `{}`                   | Org-level `maxMergeDepth` is `undefined`                               |
-| CFG-06 | Org config       | `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` | Loads org-level `maxMergeDepth`                              |
-| CFG-07 | Org owner/repo   | `owner/repo` syntax    | Loads org-level `maxMergeDepth` from explicit owner                    |
-| CFG-08 | Missing org file | Missing admin config   | Logs and returns `undefined`                                           |
-| CFG-09 | Invalid org depth | `maxMergeDepth: 0`    | Throws `"maxMergeDepth" must be an integer greater than or equal to 1` |
+| ID     | Use case          | Input                                   | Expected outcome                                                       |
+| ------ | ----------------- | --------------------------------------- | ---------------------------------------------------------------------- |
+| CFG-01 | Depth omitted     | `prefixes: [release/]`                  | `maxMergeDepth` is `undefined` (unlimited)                             |
+| CFG-02 | Depth provided    | `maxMergeDepth: 3`                      | Parsed as `3`                                                          |
+| CFG-03 | Invalid depth     | `maxMergeDepth: 0`                      | Throws `"maxMergeDepth" must be an integer greater than or equal to 1` |
+| CFG-04 | Blank ref branch  | `ref_branch: '   '`                     | Throws `"ref_branch" must be a non-empty string when provided`         |
+| CFG-05 | Org env absent    | `{}`                                    | Org-level `maxMergeDepth` is `undefined`                               |
+| CFG-06 | Org config        | `ORG_CONFIG_REPO` and `ORG_CONFIG_PATH` | Loads org-level `maxMergeDepth`                                        |
+| CFG-07 | Org owner/repo    | `owner/repo` syntax                     | Loads org-level `maxMergeDepth` from explicit owner                    |
+| CFG-08 | Missing org file  | Missing admin config                    | Logs and returns `undefined`                                           |
+| CFG-09 | Invalid org depth | `maxMergeDepth: 0`                      | Throws `"maxMergeDepth" must be an integer greater than or equal to 1` |
 
 ### Depth resolution (`__tests__/depth-control.test.ts`)
 
-| ID     | Use case              | Input                      | Expected outcome          |
-| ------ | --------------------- | -------------------------- | ------------------------- |
-| DEP-01 | No global env var     | `{}`                       | `undefined`               |
-| DEP-02 | `MAX_MERGE_DEPTH` set | `{ MAX_MERGE_DEPTH: '5' }` | `5`                       |
-| DEP-03 | `maxMergeDepth` set   | `{ maxMergeDepth: '4' }`   | `4`                       |
-| DEP-04 | Invalid global values | `'0'`, `'2.5'`, `'abc'`    | Throws a validation error |
-| DEP-05 | Repo only             | `(3, undefined, undefined)` | `3`                      |
-| DEP-06 | Global only           | `(undefined, undefined, 5)` | `5`                      |
-| DEP-07 | App cap constrains repo | `(10, undefined, 5)` / `(2, undefined, 5)` | `5` / `2`  |
-| DEP-08 | Org only              | `(undefined, 4, undefined)` | `4`                      |
-| DEP-09 | Strictest scope wins  | repo, org, and global values | Lowest configured value |
-| DEP-10 | All scopes unlimited  | `(undefined, undefined, undefined)` | `undefined`       |
-| DEP-11 | Source attribution    | effective, repo, org, and global values | `repo`, `org`, `global`, or `undefined` |
+| ID     | Use case                | Input                                      | Expected outcome                        |
+| ------ | ----------------------- | ------------------------------------------ | --------------------------------------- |
+| DEP-01 | No global env var       | `{}`                                       | `undefined`                             |
+| DEP-02 | `MAX_MERGE_DEPTH` set   | `{ MAX_MERGE_DEPTH: '5' }`                 | `5`                                     |
+| DEP-03 | `maxMergeDepth` set     | `{ maxMergeDepth: '4' }`                   | `4`                                     |
+| DEP-04 | Invalid global values   | `'0'`, `'2.5'`, `'abc'`                    | Throws a validation error               |
+| DEP-05 | Repo only               | `(3, undefined, undefined)`                | `3`                                     |
+| DEP-06 | Global only             | `(undefined, undefined, 5)`                | `5`                                     |
+| DEP-07 | App cap constrains repo | `(10, undefined, 5)` / `(2, undefined, 5)` | `5` / `2`                               |
+| DEP-08 | Org only                | `(undefined, 4, undefined)`                | `4`                                     |
+| DEP-09 | Strictest scope wins    | repo, org, and global values               | Lowest configured value                 |
+| DEP-10 | All scopes unlimited    | `(undefined, undefined, undefined)`        | `undefined`                             |
+| DEP-11 | Source attribution      | effective, repo, org, and global values    | `repo`, `org`, `global`, or `undefined` |
 
 ---
 

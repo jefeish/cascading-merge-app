@@ -1,8 +1,45 @@
-# Cascading Merge App - Sequence Diagram
+---
+title: Cascading Merge Sequence
+description: Runtime flow for normal cascades, conflict repair, continuation, depth accounting, and reports
+---
 
-This document illustrates how the Cascading Merge App processes pull requests and creates cascading merges across release branches.
+## Purpose
 
-## Complete Cascade Flow
+The Cascading Merge App reacts to merged pull requests and propagates changes
+through ordered release branches. A cascade can pause on a conflict or an
+existing pull request and later continue with the remaining depth recorded on
+the stalled pull request.
+
+The app is stateless between webhook deliveries. Hidden pull request metadata
+provides the continuation and repair state.
+
+## Pull request event routing
+
+Every `pull_request.closed` event follows this order:
+
+```mermaid
+flowchart TD
+    event[Merged pull_request.closed event] --> merged{Was the PR merged?}
+    merged -- No --> stop[Stop]
+    merged -- Yes --> repair{Trusted repair metadata?}
+    repair -- Yes --> handleRepair[Handle repair and stop normal routing]
+    repair -- No --> resume{Matching cascade continuation metadata?}
+    resume -- Yes --> handleResume[Resume interrupted cascade]
+    resume -- No --> bot{Bot-created cascade PR?}
+    bot -- Yes --> skipBot[Skip duplicate cascade handling]
+    bot -- No --> normal[Start a normal cascade]
+```
+
+A repair pull request is trusted only when:
+
+- Its metadata matches its head and base branches
+- Its creator is a bot
+- Its head repository is the repository receiving the webhook
+
+A continuation marker is accepted only when its recorded source and target
+branches match the merged pull request.
+
+## Normal cascade flow
 
 ```mermaid
 sequenceDiagram
@@ -11,91 +48,102 @@ sequenceDiagram
     participant App as Cascading Merge App
     participant Repo as Repository
 
-    Note over User,Repo: User merges a PR into a release branch
-
     User->>GitHub: Merge PR #100 into release/1.0
-    GitHub->>App: Webhook: pull_request.closed
+    GitHub->>App: pull_request.closed
+    App->>App: Classify as a normal merged PR
 
-    Note over App: Check if PR was merged
-    App->>App: if (!pull_request.merged) return
+    App->>Repo: Load .github/cascading-merge.yml
+    Repo-->>App: prefixes, ref_branch, verbose, maxMergeDepth
 
-    Note over App: Check if this is a bot-created PR
-    App->>App: Is PR created by bot?
+    opt Org depth configuration is enabled
+        App->>Repo: Load org-level maxMergeDepth
+        Repo-->>App: Org limit or no limit
+    end
 
-    alt Bot PR without resume state
-        Note over App: Skip cascade logic (already processed)
-        App->>GitHub: Exit
-    else Bot PR with resume state
-        Note over App: Stalled cascade PR was merged after a conflict fix
-        App->>App: Read remainingDepth and originating PR from PR body
-        App->>GitHub: Comment "Resuming interrupted cascade"
-        Note over App: Continue downstream with the stored depth budget
-    else Human PR
-        Note over App: Load configuration
-        App->>Repo: GET .github/cascading-merge.yml
-        Repo-->>App: prefixes, ref_branch, verbose, maxMergeDepth?
+    App->>App: Resolve the strictest repo, org, and app depth limit
+    App->>Repo: List repository branches
+    Repo-->>App: Branch list
+    App->>App: Sort matching branches and build head/base merge lists
 
-        opt ORG_CONFIG_REPO and ORG_CONFIG_PATH are set
-            App->>Repo: GET org admin repo config
-            Repo-->>App: org maxMergeDepth? or missing config
-        end
+    loop Each allowed cascade hop
+        App->>App: Decrement remainingDepth
+        App->>GitHub: Create cascade PR
 
-        Note over App: Resolve maxMergeDepth from repo, org, and app settings
-
-        Note over App: Validate base branch
-        App->>App: Does release/1.0 match configured prefixes?
-
-        Note over App: Calculate cascade order
-        App->>Repo: GET branches
-        Repo-->>App: Branch list
-        App->>App: Sort by semantic version
-        App->>App: Build cascade list
-
-        loop Each target branch
-            App->>GitHub: Create cascade PR (stamped with resume state)
-            GitHub-->>App: PR created
-
-            App->>GitHub: Comment on PR #100
-
+        alt No commits between branches
+            GitHub-->>App: 422 No commits between
+            App->>GitHub: Comment that the hop was skipped
+        else PR already exists
+            GitHub-->>App: 422 PR already exists
+            App->>GitHub: Add continuation metadata to the existing PR
+            App->>GitHub: Comment that the cascade is paused
+        else PR created
+            GitHub-->>App: Cascade PR number
+            App->>GitHub: Comment on originating PR
             App->>GitHub: Merge cascade PR
 
-            alt Merge succeeded
+            alt Merge succeeds
                 GitHub-->>App: PR merged
-                App->>GitHub: Update comment
-            else Merge conflict (405)
-                GitHub-->>App: Merge conflict
-                App->>GitHub: Create issue
-                App->>GitHub: Comment "Cascade stopped"
-                Note over User,GitHub: Conflicted PR stays open, merging it later resumes the cascade
-            else PR already exists (422)
-                GitHub-->>App: PR already exists
-                App->>GitHub: Comment "Cascade stopped"
+            else Merge returns 405
+                App->>GitHub: Confirm mergeable=false or mergeable_state=dirty
+                App->>GitHub: Add continuation metadata to stalled PR
+                App->>GitHub: Create target-based repair branch and draft PR
+                App->>GitHub: Create conflict issue and pause
             end
-        end
-
-        App->>GitHub: Comment "Auto-merge successful"
-
-        opt Verbose mode
-            App->>GitHub: Create report issue
         end
     end
 
-    Note over GitHub: Cascade PRs merge automatically
+    opt Depth is exhausted and ref_branch is configured
+        App->>GitHub: Attempt one final merge directly to ref_branch
+    end
 
-    GitHub->>App: Webhook for bot PR #101
-    App->>App: Detect bot PR, cascade already complete
-    Note over App: Skip cascade
+    App->>GitHub: Post invocation result comment
 
-    GitHub->>App: Webhook for bot PR #102
-    App->>App: Detect bot PR, cascade already complete
-    Note over App: Skip cascade
-
-    Note over User,Repo: All changes cascaded
+    opt verbose is true and this invocation tracked at least one hop
+        App->>GitHub: Create an invocation-scoped cascade report
+    end
 ```
 
-## Resuming an Interrupted Cascade
+Successfully merged cascade pull requests do not carry continuation metadata.
+Their later webhook deliveries are classified as ordinary bot pull requests and
+skipped. The original webhook handler performs the cascade synchronously.
 
-When a cascade PR cannot be auto-merged, it stays open. Merging it after the conflict is resolved continues the run with the depth budget recorded in the PR body.
+## Depth accounting
+
+`maxMergeDepth` limits attempted cascade hops. The app decrements
+`remainingDepth` before attempting to create each normal cascade pull request.
+This means:
+
+- A successfully merged hop consumes one depth unit
+- A conflicted hop consumes one depth unit
+- A `No commits between` hop consumes one depth unit
+- A repair pull request consumes no depth
+- Resuming a stalled pull request consumes no additional depth for the stalled
+  hop because that hop was counted before it stalled
+- `remainingDepth: null` means the cascade is unlimited
+
+When `remainingDepth` reaches zero and `ref_branch` is configured, the app makes
+one special final merge from the current release branch directly to
+`ref_branch`. This forced final merge does not consume another depth unit.
+
+### Example with a conflict
+
+Given `maxMergeDepth: 5`:
+
+| Action                                   | Depth before | Depth after | Counts toward limit    |
+| ---------------------------------------- | ------------ | ----------- | ---------------------- |
+| `release/0.1` to `release/1.1` conflicts | 5            | 4           | Yes                    |
+| Repair PR into `release/0.1`             | 4            | 4           | No                     |
+| Retry and merge the stalled PR           | 4            | 4           | No additional charge   |
+| `release/1.1` to `release/1.1-rc.1`      | 4            | 3           | Yes                    |
+| `release/1.1-rc.1` to `release/1.2`      | 3            | 2           | Yes                    |
+| `release/1.2` to `release/2.0`           | 2            | 1           | Yes                    |
+| `release/2.0` to `release/2.0.1-alpha`   | 1            | 0           | Yes                    |
+| `release/2.0.1-alpha` to `development`   | 0            | 0           | No, forced final merge |
+
+The logical run creates six cascade pull requests, but only five are
+depth-counted. The sixth is the configured forced final merge.
+
+## Conflict repair and continuation
 
 ```mermaid
 sequenceDiagram
@@ -103,28 +151,118 @@ sequenceDiagram
     participant GitHub
     participant App as Cascading Merge App
 
-    Note over App: Hop 6 of 10 hits a merge conflict
-    App->>GitHub: Create conflict issue, comment, stop
-    Note over GitHub: Cascade PR #479 (release/2.0.1-beta -> release/2.0.2) stays open
+    Note over App: A depth-counted cascade hop cannot merge
+    App->>GitHub: Confirm the PR has a real merge conflict
+    App->>GitHub: Store remainingDepth on the stalled cascade PR
+    App->>GitHub: Read current source and target branch SHAs
+    App->>GitHub: Create cascade-fix/stalled-sourceSha-targetSha from target
+    App->>GitHub: Open draft repair PR into protected source
+    App->>GitHub: Create conflict issue and stop this invocation
 
-    User->>GitHub: Commit conflict fix to release/2.0.1-beta
-    User->>GitHub: Merge PR #479
-    GitHub->>App: Webhook: pull_request.closed
+    User->>GitHub: Merge protected source into repair branch
+    User->>GitHub: Resolve conflicts and push
+    User->>GitHub: Mark repair PR ready and merge it
+    GitHub->>App: pull_request.closed for repair PR
 
-    App->>App: Bot PR, but body carries resume state
-    App->>App: Read remainingDepth = 4, originatingPr = 478
-    App->>GitHub: Comment on PR #478 "Resuming interrupted cascade"
+    App->>App: Validate repair and stalled cascade metadata
+    App->>GitHub: Retry the original stalled cascade PR
 
-    Note over App: Continue from release/2.0.2, head list skipped
-    loop 4 remaining hops
-        App->>GitHub: Create and merge cascade PR
+    alt Stalled PR merges
+        App->>GitHub: Comment on originating PR
+        App->>GitHub: Delete unchanged app-owned repair branch
+        GitHub->>App: pull_request.closed for stalled cascade PR
+        App->>App: Read stored remainingDepth
+        App->>App: Skip the already-processed head merge list
+        App->>GitHub: Continue downstream with stored remainingDepth
+    else Stalled PR still conflicts
+        App->>GitHub: Confirm conflict state
+        App->>GitHub: Create or reuse repair PR for latest branch SHAs
+        App->>GitHub: Comment on originating PR
+    else Retry fails for another reason
+        App->>GitHub: Comment error on repair PR
+        Note over App,GitHub: Original cascade remains paused
     end
-
-    App->>GitHub: Comment "Auto-merge was successful"
-    Note over User,GitHub: 10 hops total, not 16
 ```
 
-## Configuration Example
+The repair branch starts from the stalled pull request's target branch. This
+ensures that the draft repair pull request has a real diff immediately. The
+developer merges the protected source branch into the writable repair branch
+and resolves the conflict there.
+
+The stalled cascade pull request remains the only authority for:
+
+- Originating pull request
+- Source and target branch pair
+- Remaining depth
+- Effective maximum depth and its configuration source
+- Final `ref_branch`
+
+If the repair branch moves after its pull request merges, the app leaves it in
+place rather than deleting an unexpected ref.
+
+## Continuation metadata
+
+Current continuation markers use version 2 and `kind: "cascade"`:
+
+```text
+<!-- cascading-merge-app:{"version":2,"kind":"cascade","originatingPr":478,"sourceBranch":"release/2.0.1-beta","targetBranch":"release/2.0.2","remainingDepth":4,"maxMergeDepth":10,"maxMergeDepthSource":"org","refBranch":"development"} -->
+```
+
+Repair markers use version 2 and `kind: "repair"` and reference the stalled pull
+request. Version 1 continuation markers remain readable and are normalized to
+the current in-memory representation.
+
+When metadata is updated, the existing marker is replaced. The app rejects an
+attempt to replace metadata belonging to a different cascade operation.
+
+## Existing pull request collision
+
+If GitHub reports that the source/target pull request already exists, the app:
+
+1. Finds the open pull request for that exact branch pair.
+2. Adds continuation metadata containing the current remaining depth.
+3. Stops the current invocation.
+4. Resumes from the stored state when that pull request is later merged.
+
+The existing pull request performs the stalled depth-counted hop. Its later
+merge does not consume that depth a second time.
+
+## Final branch continuation
+
+A stalled cascade pull request can target `ref_branch`, even though that branch
+does not match a configured release prefix. The event router accepts this as a
+terminal continuation when the target matches the `refBranch` recorded in
+metadata.
+
+After that stalled final pull request merges, the continuation has no
+downstream release work. The app reports success without starting another
+cascade.
+
+## Verbose cascade reports
+
+Reports are scoped to one invocation of `cascadingBranchMerge`; they are not an
+aggregate view of the entire logical cascade.
+
+An interrupted run therefore produces:
+
+1. A report for the initial invocation, containing the pull requests attempted
+   before the conflict
+2. A second report for the continuation invocation, containing only the
+   downstream work performed after the stalled pull request merged
+
+To evaluate the logical run, combine both reports and apply the depth rules
+above. For example, an initial report with one conflicted hop followed by a
+continuation report with five rows can still respect `maxMergeDepth: 5`: the
+continuation rows can represent four remaining depth-counted hops plus the
+forced final `ref_branch` merge.
+
+> [!WARNING]
+> The current report table derives its status from creation tracking. A pull
+> request that was created and then stalled by a conflict can be displayed as
+> `Created & Merged` even though it remains open. The pull request's actual
+> GitHub state is authoritative.
+
+## Configuration example
 
 ```yaml
 # .github/cascading-merge.yml
@@ -132,69 +270,24 @@ prefixes:
   - 'release/'
   - 'hotfix/'
 
-# Optional: final reference merge target
-# If omitted, no final reference merge is performed
-ref_branch: 'main'
-
-verbose: true # Creates report issue with Mermaid diagram
-maxMergeDepth: 5 # Optional; omit for unlimited depth
-                 # With ref_branch set, one final merge to ref_branch is still attempted after depth is reached
-                 # Org-level and app-level maxMergeDepth values can cap this value
+ref_branch: 'development'
+verbose: true
+maxMergeDepth: 5
 ```
 
-## Verbose Report Output
+The effective maximum depth is the strictest configured repository,
+organization, or app-level value. Resumed cascades inherit the effective depth
+and source recorded when the cascade started.
 
-When `verbose: true`, the app creates a GitHub Issue after cascade completion:
+## Branch ordering
 
-### Sample Report
+The app tokenizes matching branch names on `/`, `-`, `+`, `_`, and `.` and sorts
+numeric tokens numerically before comparing non-numeric tokens as ASCII text.
+Only branches at or after the triggering branch participate.
 
----
+Example order:
 
-## 🔄 Cascade Merge Report
-
-## Trigger Information
-
-- **Original PR**: #100
-- **Merged Branch**: `feature/xyz` → `release/1.0`
-- **Total Cascade PRs**: 3 created, 0 skipped
-
-## Cascade PRs
-
-| PR # | Source Branch | Target Branch | Status              |
-| ---- | ------------- | ------------- | ------------------- |
-| #101 | `release/1.0` | `release/1.1` | ✅ Created & Merged |
-| #102 | `release/1.1` | `release/2.0` | ✅ Created & Merged |
-| #103 | `release/2.0` | `main`        | ✅ Created & Merged |
-
-## Visual Flow
-
-```mermaid
-gitGraph
-  commit id: "PR #100"
-
-  branch "release/1.0"
-  checkout "release/1.0"
-  commit id: "Merged feature/xyz"
-
-  branch "release/1.1"
-  checkout "release/1.1"
-  commit id: "PR #101"
-
-  branch "release/2.0"
-  checkout "release/2.0"
-  commit id: "PR #102"
-
-  checkout "main"
-  commit id: "PR #103"
-```
-
----
-
-## Branch Ordering Algorithm
-
-The app uses **semantic version sorting** to determine cascade order:
-
-```
+```text
 release/1.0
 release/1.1
 release/1.1-rc.1
@@ -202,7 +295,5 @@ release/1.2
 release/2.0
 release/2.0.1-alpha
 release/2.0.1-beta
-main (ref_branch)
+development (ref_branch)
 ```
-
-This ensures changes flow from oldest to newest versions, ending at the final reference branch.

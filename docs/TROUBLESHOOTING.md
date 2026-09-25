@@ -318,7 +318,11 @@ prefixes:
    "Could not auto merge PR #123 due to merge conflicts"
    ```
 
-   → Manual intervention required. The conflicted cascade PR stays open. Resolve the conflict on that PR by committing to its **head** branch, then merge it — the app resumes the remaining hops automatically with the original depth budget.
+   → Manual intervention is required. The conflicted cascade PR stays open,
+   and the app creates a target-based draft `cascade-fix/*` PR into its
+   protected source branch. Follow the repair PR instructions, complete its
+   required reviews and checks, and merge it. The app retries the stalled
+   cascade PR and resumes with the original depth budget.
 
    If merging the fixed PR does not resume the cascade, check the logs for:
 
@@ -328,7 +332,9 @@ prefixes:
 
    → The PR predates the resume feature, or its description was edited and the hidden `<!-- cascading-merge-app:... -->` marker was removed. Re-trigger the cascade manually by merging a PR into the branch where it stopped.
 
-   Resolving the conflict on a **separate patch branch** merged into the head branch is not recognized as a continuation and starts a fresh cascade.
+   If no repair PR exists, inspect the originating PR comment and app logs for
+   an error while creating the repair branch or PR. The cascade remains paused
+   until that error is resolved.
 
 2. **No commits between branches**
 

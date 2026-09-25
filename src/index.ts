@@ -1,12 +1,20 @@
 import { Probot } from 'probot'
-import { parseMatchingCascadeMetadata } from './lib/cascade-metadata.js'
 import { cascadingBranchMerge } from './lib/cascading-branch-merge.js'
 import { loadConfig, loadOrgMaxMergeDepth } from './lib/config.js'
+import { handleRepairMerge } from './lib/conflict-repair.js'
 import {
-    parseGlobalMaxMergeDepth,
-    resolveEffectiveMaxMergeDepth,
-    resolveMaxMergeDepthSource
+  classifyPullRequest,
+  shouldProcessCascadeBase
+} from './lib/pull-request-routing.js'
+import {
+  parseGlobalMaxMergeDepth,
+  resolveEffectiveMaxMergeDepth,
+  resolveMaxMergeDepthSource
 } from './lib/depth-control.js'
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 /**
  * Main Probot app function
@@ -45,26 +53,58 @@ export default (app: Probot) => {
     context.log.info(`Head branch: ${pull_request.head.ref}`)
     context.log.info(`Base branch: ${pull_request.base.ref}`)
 
+    const owner = repository.owner.login
+    const repo = repository.name
+    const route = classifyPullRequest(pull_request, repository.full_name)
+
+    if (route.kind === 'repair') {
+      context.log.info(
+        `PR #${pull_request.number} repaired stalled cascade PR #${route.metadata.stalledPr}`
+      )
+
+      try {
+        await handleRepairMerge({
+          owner,
+          repo,
+          octokit: context.octokit,
+          log: context.log,
+          repairMetadata: route.metadata,
+          repairPullNumber: pull_request.number,
+          repairHeadSha: pull_request.head.sha
+        })
+      } catch (error: unknown) {
+        const errorMessage = getErrorMessage(error)
+        context.log.error(
+          `Error processing repair PR #${pull_request.number}: ${errorMessage}`
+        )
+        await context.octokit.rest.issues.createComment({
+          owner,
+          repo,
+          issue_number: pull_request.number,
+          body: `:x: **Cascading Merge Repair Error**\n\nThe app could not retry stalled cascade PR #${route.metadata.stalledPr}:\n\n\`\`\`\n${errorMessage}\n\`\`\`\n\nThe original cascade remains paused.`
+        })
+      }
+      return
+    }
+
+    if (route.kind === 'normal' && route.rejectedRepairMetadata) {
+      context.log.warn(
+        `PR #${pull_request.number} has repair metadata but was not created by this app in ${repository.full_name}; processing it as a normal PR`
+      )
+    }
+
     // Bot-created cascade PRs normally must not re-trigger a cascade, because the
     // originating PR already created the full chain. A PR carrying matching cascade
     // metadata resumes an interrupted conflict or existing-PR collision without
     // restarting the depth budget.
-    const isBotPR =
-      pull_request.user.type === 'Bot' ||
-      pull_request.title.startsWith('Automatic merge from')
-
-    const resumeMetadata = parseMatchingCascadeMetadata(
-      pull_request.body,
-      pull_request.head.ref,
-      pull_request.base.ref
-    )
-
-    if (isBotPR && !resumeMetadata) {
+    if (route.kind === 'skip-bot') {
       context.log.info(
         `PR #${pull_request.number} is a bot-created cascade PR without cascade metadata, skipping cascade logic`
       )
       return
     }
+
+    const resumeMetadata = route.kind === 'resume' ? route.metadata : undefined
 
     if (resumeMetadata) {
       context.log.info(
@@ -116,11 +156,13 @@ export default (app: Probot) => {
       )
 
       // Check if the base branch matches any configured prefix
-      const matchesPrefix = config.prefixes.some(prefix =>
-        pull_request.base.ref.startsWith(prefix)
-      )
-
-      if (!matchesPrefix) {
+      if (
+        !shouldProcessCascadeBase(
+          config.prefixes,
+          pull_request.base.ref,
+          resumeMetadata
+        )
+      ) {
         context.log.info(
           `Base branch "${pull_request.base.ref}" does not match any configured prefix, skipping cascade`
         )
@@ -128,8 +170,6 @@ export default (app: Probot) => {
       }
 
       // Extract repository details
-      const owner = repository.owner.login
-      const repo = repository.name
       const actor = sender.login
 
       context.log.info(
